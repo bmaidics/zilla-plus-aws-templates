@@ -3,8 +3,8 @@ import { App, TerraformStack, CloudBackend, NamedCloudWorkspace, TerraformOutput
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
-import { launchTemplate } from '@cdktf/provider-aws/lib'
-import { autoscalingGroup } from '@cdktf/provider-aws/lib'
+import { launchTemplate } from '@cdktf/provider-aws'
+import { autoscalingGroup } from '@cdktf/provider-aws'
 import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
 import * as aws from '@cdktf/provider-aws';
 import { LaunchTemplate } from "@cdktf/provider-aws/lib/launch-template";
