@@ -117,6 +117,8 @@ class ZillaPlusPublicAccessUnauthorizedSaslStack extends TerraformStack {
     const CLOUDWATCH_ENABLED = process.env.CLOUDWATCH_ENABLED === "true";
 
     let zillaTelemetryContent = "";
+    let bindingTelemetryContent = ""; 
+
 
     if (CLOUDWATCH_ENABLED)
     {
@@ -160,7 +162,14 @@ telemetry:
       options:
         ${logsSection}
         ${metricsSection}`;
-    }
+
+        bindingTelemetryContent = `
+    telemetry:
+      metrics:
+        - stream.*`;
+
+      }
+    
 
     const instanceType = new TerraformVariable(this, 'instanceType', {
       type: 'string',
@@ -225,6 +234,7 @@ bindings:
     options:
       host: 0.0.0.0
       port: ${publicPort}
+${bindingTelemetryContent}
     exit: tls_server
   tls_server:
     type: tls
