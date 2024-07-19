@@ -1,5 +1,6 @@
 *.d.ts
 *.js
+*.tfvars
 node_modules
 cdktf.out
 cdktf.log
