@@ -19,10 +19,10 @@ class ZillaPlusPublicAccessMtlsStack extends TerraformStack {
     super(scope, id);
 
     const awsProvider = new AwsProvider(this, "AWS", {
-      region: "us-east-1",
-      accessKey: "ASIAWPRT43PNESWYWLSJ",
-      secretKey: "c4+NMr/HY9rhOGIZqQCh7BZc/c+LLGAdavxa9+3F",
-      token: "IQoJb3JpZ2luX2VjEFUaCXVzLXdlc3QtMiJHMEUCIEpLmgcUU2H27NikZcbeT0Ay6NtDMddLZJoKbkVshpkwAiEA9cUNxN5sruxAMr/0Piw64EY/cRpsHU64phXccKm7ybgqhgMILhADGgw0NDU3MTE3MDMwMDIiDI8n/nPn2KOEXO07FyrjAmFoj3k2Or8FRdZCTsvKA4z7GUdbldJh4pHDTshu0+G6PPYapS2Mjyd/8dVtqpbA2Ym7SKP6FGnc5Pe6Kbe+CEvM9Z5BaEwU262xtzet8eUO75D6PTZRfFqui7eoWT5PzfS04gXaccMYV41ZvLUKpTR3OFSkUtltnH2SM1r5K7j3zmAVwKEzqiFk5+G+SWnad0uAHg/Yui67p+3soID8ut7g2YQfOwr+S0wLpw7fauC4qL1Do4vo/wGuBqYugZ8HU4gj1xpTFtLsC0ticLuyZQHvDMbuXFw/kqbOCVnltuBQzvXtfT9xIIm/5MyMgheeVUJ43MvuWjRgKJTtJ3uU5TxUs94hbWCBWvMlLdDe1XRlCoBle3XV/pE2fR5hZiEhQ1xkFrno0ko410PQlCvSk2s0thATFo6BlsC+JMn6crfUMlHyR1Hsd3vdRkGd9gN/Akv8YqF5Hx6X1AHc3n8tDrRaxgIwpLvptAY6pgGbhghxEGakJXunpZdEyUNtfC95ll+vRCxtBMdLjn4NkNQKmMF4m/yQpKYFbOzaknr9PnElXTnorPDV14QoN/xJy+zrnakwCz4E03lhgDNRvPxg3kUSWfuamnYN75E8DNkHzEIDMmnFzHiiG97HXbWxwQMrIPqiMyFty20dGWTadtmZCJaM+QPmVwu1GiZVuzb9yERxK5k9epuqErOrd5pvig5qqt/p"
+      region: "<your region>",
+      accessKey: "<your aws access key>",
+      secretKey: "<your aws secret key>",
+      token: "<your aws token>"
     });
 
     const vpcId = new TerraformVariable(this, 'vpcId', {

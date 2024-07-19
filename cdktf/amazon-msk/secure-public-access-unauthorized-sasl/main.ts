@@ -1,5 +1,5 @@
 import { Construct } from "constructs";
-import { App, TerraformStack, TerraformOutput, TerraformVariable, Fn, CloudBackend, NamedCloudWorkspace} from "cdktf";
+import { App, TerraformStack, TerraformOutput, TerraformVariable, Fn} from "cdktf";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
@@ -17,10 +17,10 @@ class ZillaPlusPublicAccessUnauthorizedSaslStack extends TerraformStack {
     super(scope, id);
 
     const awsProvider = new AwsProvider(this, "AWS", {
-      region: "us-east-1",
-      accessKey: "ASIAWPRT43PNLF2ZOPPZ",
-      secretKey: "jQb/xIz68J0ijIqmU1TlzbcdxUkNL1dx+j37SVUm",
-      token: "IQoJb3JpZ2luX2VjEFcaCXVzLXdlc3QtMiJGMEQCIByTnl0ZLbwseZh0CA1nm/AX2uXwInuOjffjqW8diwPgAiBC8ecrJRUcqtw0bGLYXci+wRf48iYl/aQqwL9F4m12VCqGAwgwEAMaDDQ0NTcxMTcwMzAwMiIM9c4haee+RsXnFQHrKuMCjGsrmcF3IXeqwd1qOLF4uVQCeTlXohUayHaYRqWroImk+U/JdKqjTCnDe8Q23EwwvA9U71xYdWOUNMnfFRxI6mmD+F1LD65I9mqvwZ3atOxBIZiViC6gevlVD6KrJrMRxBdjuHyYpQCW3MUktrlPJ/9XdhZbbOEbFFjjSrn7Vqb07v9mmMqv8FfJjE7AKxr+PUTyWAJsIEIDfY1kJVO11kQ7+cpZZU/s1uzTZAT7BkvjEb24tdcWDa/wsKeFATVNgf9KMe0orfUwT3p5dSgvLEqSIw6ibheAq7eNuQaqBQRlkeF6JXFGkZa9m7w99P7KsmNT8Ijq5ac5ShlvI1DAKFWBM9xj0KdkaIj3aUpKA2jVoZuM/5WaobvTUD12hFZUR62nP0RlN1ADG5q/Pri/VOuw5o+h5rt13QKT05GRjUpkthE4EDAVWd+n4ufntOz9jZ441RqJ44AhhICAZaKi+1pkFzCO+Om0BjqnAXg6j/wtd5sYuI11x0kI7AeUq5IdRDhbqSZl/PUGNBE99UtttXaqE5Sj/+6/grLf+jS1GVuW0YjO34ncVyV2bnnDOcGWLe8KMK5UwX9TgNqhPot/6jR8arPWAnt9NrdWunCqXgoFpyompbaTLjKeYbQ+/2OaAMWDuwVw90UXblHzMVA7pHGGR1pQh2Ok2lZ9PRdYWotQjp6Qops8D1G1kQpiCPkEs74Y"
+      region: "<your region>",
+      accessKey: "<your aws access key>",
+      secretKey: "<your aws secret key>",
+      token: "<your aws token>"
     });
 
     const vpcId = new TerraformVariable(this, 'vpcId', {
@@ -361,10 +361,5 @@ systemctl start zilla-plus
 
 const app = new App();
 
-const stack = new ZillaPlusPublicAccessUnauthorizedSaslStack(app, "secure-public-access-unauthorized-sasl");
-new CloudBackend(stack, {
-  hostname: "app.terraform.io",
-  organization: "Aklivity",
-  workspaces: new NamedCloudWorkspace("secure-public-access-unauthorized-sasl")
-});
+new ZillaPlusPublicAccessUnauthorizedSaslStack(app, "secure-public-access-unauthorized-sasl");
 app.synth();
