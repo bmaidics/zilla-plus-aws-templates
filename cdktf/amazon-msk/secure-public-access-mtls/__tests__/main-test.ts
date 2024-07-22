@@ -1,89 +1,106 @@
-// Copyright (c) HashiCorp, Inc
-// SPDX-License-Identifier: MPL-2.0
-import "cdktf/lib/testing/adapters/jest"; // Load types for expect matchers
-// import { Testing } from "cdktf";
+import "cdktf/lib/testing/adapters/jest";
+import { Testing } from "cdktf";
+import { ZillaPlusSecurePublicAccessMtlsStack } from "../main";
+import { CloudwatchLogGroup } from "@cdktf/provider-aws/lib/cloudwatch-log-group";
+import { autoscalingGroup, launchTemplate } from "@cdktf/provider-aws";
+import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
+import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
+import { Lb } from "@cdktf/provider-aws/lib/lb";
 
-describe("My CDKTF Application", () => {
-  // The tests below are example tests, you can find more information at
-  // https://cdk.tf/testing
-  it.todo("should be tested");
+describe("Zilla Plus Public Access Mtls Stack Test", () => {
+  let output: string;
 
-  // // All Unit tests test the synthesised terraform code, it does not create real-world resources
-  // describe("Unit testing using assertions", () => {
-  //   it("should contain a resource", () => {
-  //     // import { Image,Container } from "./.gen/providers/docker"
-  //     expect(
-  //       Testing.synthScope((scope) => {
-  //         new MyApplicationsAbstraction(scope, "my-app", {});
-  //       })
-  //     ).toHaveResource(Container);
+  beforeAll(() => {
+    const app = Testing.app();
+    const stack = new ZillaPlusSecurePublicAccessMtlsStack(app, "test");
+    output = Testing.synth(stack);
+  });
 
-  //     expect(
-  //       Testing.synthScope((scope) => {
-  //         new MyApplicationsAbstraction(scope, "my-app", {});
-  //       })
-  //     ).toHaveResourceWithProperties(Image, { name: "ubuntu:latest" });
-  //   });
-  // });
+  it("should have auto scaling group", async () => {
+    expect(output).toHaveResourceWithProperties(
+      autoscalingGroup.AutoscalingGroup,
+      {
+        min_size: 1,
+        max_size: 5,
+        launch_template: expect.objectContaining({
+          id: expect.stringContaining("${aws_launch_template.ZillaPlusLaunchTemplate.id}")
+        }),
+        target_group_arns: expect.arrayContaining(
+          ["${aws_lb_target_group.NLBTargetGroup.arn}"]
+        ),
+        vpc_zone_identifier: "${var.subnetIds}" 
+      });
+  });
 
-  // describe("Unit testing using snapshots", () => {
-  //   it("Tests the snapshot", () => {
-  //     const app = Testing.app();
-  //     const stack = new TerraformStack(app, "test");
+  it("should have cloudwatch group resource", async () => {
+    process.env.CLOUDWATCH_ENABLED="true";
+    const app = Testing.app();
+    const stack = new ZillaPlusSecurePublicAccessMtlsStack(app, "test");
+    const output = Testing.synth(stack);
 
-  //     new TestProvider(stack, "provider", {
-  //       accessKey: "1",
-  //     });
+    expect(output).toHaveResourceWithProperties(CloudwatchLogGroup, {
+      name: "${var.cloudWatchLogsGroup}"
+    })
+    delete process.env.CLOUDWATCH_ENABLED;
+  });
 
-  //     new TestResource(stack, "test", {
-  //       name: "my-resource",
-  //     });
+  it("should have load balancer target group", async () => {
 
-  //     expect(Testing.synth(stack)).toMatchSnapshot();
-  //   });
+    expect(output).toHaveResourceWithProperties(
+      LbTargetGroup, {
+        vpc_id: "${var.vpcId}",
+        name: "nlb-target-group",
+        port: "${var.publicPort}",
+        protocol: "TCP"
+      });
+  });
 
-  //   it("Tests a combination of resources", () => {
-  //     expect(
-  //       Testing.synthScope((stack) => {
-  //         new TestDataSource(stack, "test-data-source", {
-  //           name: "foo",
-  //         });
+  it("should have load balancer", async () => {
 
-  //         new TestResource(stack, "test-resource", {
-  //           name: "bar",
-  //         });
-  //       })
-  //     ).toMatchInlineSnapshot();
-  //   });
-  // });
+    expect(output).toHaveResourceWithProperties(
+      Lb, {
+        enable_cross_zone_load_balancing: true,
+        internal: false,
+        load_balancer_type: "network",
+        name: "network-load-balancer",
+        subnets: "${var.subnetIds}"
+      });
+  });
 
-  // describe("Checking validity", () => {
-  //   it("check if the produced terraform configuration is valid", () => {
-  //     const app = Testing.app();
-  //     const stack = new TerraformStack(app, "test");
+  it("should have load balancer listener", async () => {
 
-  //     new TestDataSource(stack, "test-data-source", {
-  //       name: "foo",
-  //     });
+    expect(output).toHaveResourceWithProperties(
+      LbListener, {
+        default_action: [
+          {
+            "target_group_arn": "${aws_lb_target_group.NLBTargetGroup.arn}",
+            "type": "forward"
+          }
+        ],
+        load_balancer_arn: "${aws_lb.NetworkLoadBalancer.arn}",
+        port: "${var.publicPort}",
+        protocol: "TCP"
+      });
+  });
 
-  //     new TestResource(stack, "test-resource", {
-  //       name: "bar",
-  //     });
-  //     expect(Testing.fullSynth(app)).toBeValidTerraform();
-  //   });
 
-  //   it("check if this can be planned", () => {
-  //     const app = Testing.app();
-  //     const stack = new TerraformStack(app, "test");
+  it("should have launch template", async () => {
 
-  //     new TestDataSource(stack, "test-data-source", {
-  //       name: "foo",
-  //     });
-
-  //     new TestResource(stack, "test-resource", {
-  //       name: "bar",
-  //     });
-  //     expect(Testing.fullSynth(app)).toPlanSuccessfully();
-  //   });
-  // });
+    expect(output).toHaveResourceWithProperties(
+      launchTemplate.LaunchTemplate, {
+        iam_instance_profile: {
+          name: "${var.zillaPlusRole}"
+        },
+        image_id: "${data.aws_ami.LatestAmi.image_id}",
+        instance_type: "${var.instanceType}",
+        key_name: "",
+        network_interfaces: [
+          {
+            associate_public_ip_address: "true",
+            device_index: 0,
+            security_groups: "${var.zillaPlusSecurityGroups}"
+          }
+        ],
+      });
+  });
 });
