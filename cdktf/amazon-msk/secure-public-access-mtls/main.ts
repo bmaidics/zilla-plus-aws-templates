@@ -531,10 +531,7 @@ export class ZillaPlusSecurePublicAccessMtlsStack extends TerraformStack {
     super(scope, id);
 
     const awsProvider = new AwsProvider(this, "AWS", {
-      region: "us-east-1",
-      accessKey: "ASIAWPRT43PNEQ7SKY6L",
-      secretKey: "IAZNUp7gVh8QCOUEbAKOgG6Pt/ioJ3v1Ne4coohK",
-      token: "IQoJb3JpZ2luX2VjEJz//////////wEaCXVzLXdlc3QtMiJHMEUCICTv10nukPUH+8/RsanHI3se4yjXhh0ImrWVd4hX9UUFAiEAgYMdakcQJLAO22xVaFSIKZzE92LUfPJoIw8w2eX1XEkqhgMIdRADGgw0NDU3MTE3MDMwMDIiDFqgXDEaRr/cb+J15irjAmXGUSdr8BZlXuHJFCqn29qM0FwMLPmwvyw9dnmak1lljDpZ8GMnGiHIhy0T6RFam52txAPU4eoM6F3Wi327eWU9K69ekpGDLVtM8gPRcf/wH29+lSAtovnwCgpsnccbiRblZQ85r0+QzVclzVFjs553pUG4xwrZB3f5izuGH2owlgvOkPWnfFCOQJkuhNYng844vbrMoNq4hTSvoJ/ZKJIx5sLBdN4M9v/F0PkJtCf/5/cdkqXBk9f3pwSrGx9JH244lqBL60k+GLv16qpQUJ1zIktVWbt1HPVO8Cl89H+HeHjalinvqy6BiqaojPSXTAuWMLkNlk5IKjc2PY5ey7nU5n6Shvg8gz/uqwawNHkGzRqV4h8ENqFH3Cxkv04QYm2ady43ghin+B/Q1arSkqdV0sGCeeZlsAVnxkvfFJyFpD4glaCmfTsu+wIhHghUu33FPEgt2W+RV5yYVlIS79Hxqh8who/5tAY6pgFo+eaOT/Q3x72qNEFirWFmfMeXjR3gKLWXmOwCPd6VV0RxmiLPDro7SY4dnKuWnulxtsDUUjraBjPN3gc46kyLx33vGDpd26Pm1Xdp8Mx7xr1g9YLzcScMg7pqZvUVUG0R2Uo9OXnbkj9xtDvQsy/14uB9WpLOJNpzvHooMJquWPpitbRn1tC2q02v80Rpee0W1PV/xMuYDK5uSxbgHDE3sSZJ6Pk9"
+
     });
 
     const vpcId = new TerraformVariable(this, 'vpcId', {
@@ -653,6 +650,7 @@ export class ZillaPlusSecurePublicAccessMtlsStack extends TerraformStack {
         default: defaultMetricNamespace
       });
 
+      //TODO: create only if not exists
       new CloudwatchLogGroup(this, `loggroup`, {
         name: cloudWatchLogsGroup.stringValue
       });
