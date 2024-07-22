@@ -10,6 +10,7 @@ import { DataAwsAcmpcaCertificateAuthority } from "@cdktf/provider-aws/lib/data-
 import { DataAwsSecretsmanagerSecretVersion } from "@cdktf/provider-aws/lib/data-aws-secretsmanager-secret-version";
 import { CloudwatchLogGroup } from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 import { DataAwsMskCluster } from "@cdktf/provider-aws/lib/data-aws-msk-cluster";
+import { DataAwsCloudwatchLogGroup } from "@cdktf/provider-aws/lib/data-aws-cloudwatch-log-group";
 
 const instanceTypes = [
   "c1.medium",
@@ -531,10 +532,6 @@ export class ZillaPlusSecurePublicAccessMtlsStack extends TerraformStack {
     super(scope, id);
 
     const awsProvider = new AwsProvider(this, "AWS", {
-      region: "<your region>",
-      accessKey: "<your aws access key>",
-      secretKey: "<your aws secret key>",
-      token: "<your aws token>"
     });
 
     const vpcId = new TerraformVariable(this, 'vpcId', {
@@ -653,8 +650,15 @@ export class ZillaPlusSecurePublicAccessMtlsStack extends TerraformStack {
         default: defaultMetricNamespace
       });
 
-      new CloudwatchLogGroup(this, `loggroup`, {
+      const existingLogGroup = new DataAwsCloudwatchLogGroup(this, 'existingLogGroup', {
         name: cloudWatchLogsGroup.stringValue
+      });
+
+      new CloudwatchLogGroup(this, `loggroup`, {
+        name: cloudWatchLogsGroup.stringValue,
+        dependsOn: [existingLogGroup],
+        skipDestroy: true,
+        count: existingLogGroup.arn ? 0 : 1
       });
       
       const logsSection = `
