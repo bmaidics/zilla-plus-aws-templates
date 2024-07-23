@@ -7,7 +7,7 @@ import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 import { ZillaPlusSecurePublicAccessUnauthorizedSaslStack } from "../main";
 
-describe("Zilla Plus Public Access Unauthorized/SASL Stack Test", () => {
+describe("Zilla Plus Secure Public Access Unauthorized/SASL Stack Test", () => {
   let output: string;
 
   beforeAll(() => {
