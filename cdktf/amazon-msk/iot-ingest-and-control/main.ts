@@ -525,7 +525,7 @@ const instanceTypes = [
   "z1d.metal"
 ];
 
-class ZillaPlusIotAndControlStack extends TerraformStack {
+export class ZillaPlusIotAndControlStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
 
