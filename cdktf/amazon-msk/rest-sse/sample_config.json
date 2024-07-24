@@ -1,0 +1,12 @@
+{
+    "mappings":
+    [
+        {
+            "topic": "items"
+        },
+        {
+            "topic": "petstore",
+            "path": "/pets"
+        }
+    ]
+}
