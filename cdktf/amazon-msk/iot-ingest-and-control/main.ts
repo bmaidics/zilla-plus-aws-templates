@@ -114,7 +114,7 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       description: 'MSK Proxy EC2 instance type'
     });
     instanceType.addValidation({
-      condition: `${Fn.contains(instanceTypes, instanceType.stringValue)}`,
+      condition: `${Fn.contains(instanceTypes.instanceTypes, instanceType.stringValue)}`,
       errorMessage: 'must be a valid EC2 instance type.'
     })
 
