@@ -84,7 +84,7 @@ export class ZillaPlusRestSseStack extends TerraformStack {
     const publicTcpPort = new TerraformVariable(this, 'publicTcpPort', {
       type: 'number',
       default: 7143,
-      description: 'The public port number to be used by MQTT clients',
+      description: 'The public port number to be used by REST and SSE clients',
     });
 
     const publicTlsCertificateKey = new TerraformVariable(this, 'publicTlsCertificateKey', {

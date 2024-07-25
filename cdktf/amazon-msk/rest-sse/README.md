@@ -78,7 +78,31 @@ aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output tabl
 Find and note down the ARN of the secret that contains your public TLS certificate private key.
 
 
+### 8. Zilla Plus Capacity (`zillaPlusCapacity`)
+
+This variable defines the initial number of Zilla Plus instances.
+
+#### Default Value
+
+- Default: `2`
+
+### 9. Public TCP Port (publicTcpPort)
+This variable defines the public port number to be used by REST and SSE clients.
+
+Default Value
+- Default: `7143`
+
+### 10. Kafka Topic (kafkaTopic)
+This variable defines the Kafka topic exposed through REST and SSE.
+
 ## Optional Features
+
+### CUSTOM_PATH
+To enable a custom path for the Kafka topic, set the environment variable CUSTOM_PATH to true. If enabled, you will need to provide the path where the Kafka topic should be exposed.
+
+#### Steps to Configure
+1. Set CUSTOM_PATH=true to enable custom path support.
+2. Provide the path for the Kafka topic.
 
 ### SSH Key Access
 
