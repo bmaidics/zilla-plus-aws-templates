@@ -1,0 +1,119 @@
+# CDKTF Project Setup Guide
+
+This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus REST and SSE using CDKTF.
+
+## Prerequisites
+
+1. Install AWS CLI: Follow the official [AWS CLI installation guide](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
+2. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
+
+## Variables
+
+### 1. VPC ID (`vpcId`)
+
+You need the ID of the Virtual Private Cloud (VPC) where you want to deploy your resources.
+
+List all VPCs:
+```bash
+aws ec2 describe-vpcs --query 'Vpcs[*].[VpcId, Tags[?Key==`Name`].Value | [0]]' --output table
+```
+
+Note down the VPC ID (VpcId) of the desired VPC.
+### 2. Subnet IDs (subnetIds)
+You need the IDs of the subnets within the selected VPC.
+
+List all subnets in the selected VPC:
+
+```bash
+aws ec2 describe-subnets --filters "Name=vpc-id,Values=<YourVpcId>" --query 'Subnets[*].[SubnetId, Tags[?Key==`Name`].Value | [0]]' --output table
+```
+
+Replace <YourVpcId> with the VPC ID you obtained earlier.
+
+Note down the Subnet IDs (SubnetId) of the desired subnets.
+
+### 3. MSK Access Credentials ARN (mskAccessCredentialsARN)
+You need the ARN of the Secrets Manager secret that contains your MSK access credentials.
+
+List all secrets in Secrets Manager:
+```bash
+aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output table
+```
+Find and note down the ARN of the secret that contains your MSK access credentials.
+
+### 4. MSK Cluster Name (mskClusterName)
+You need the name of your MSK cluster.
+
+List all MSK clusters:
+```bash
+aws kafka list-clusters --query 'ClusterInfoList[*].[ClusterName,ClusterArn]' --output table
+```
+Note down the name (ClusterName) of the desired MSK cluster.
+
+### 5. Zilla Plus Role (zillaPlusRole)
+You need the name of the IAM role assumed by Zilla Plus instances.
+
+List all IAM roles:
+```bash
+aws iam list-roles --query 'Roles[*].[RoleName,Arn]' --output table
+```
+Note down the role name (RoleName) of the desired IAM role.
+
+### 6. Zilla Plus Security Groups (zillaPlusSecurityGroups)
+You need the IDs of the security groups associated with Zilla Plus instances.
+
+List all security groups:
+```bash
+aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId, GroupName]' --output table
+```
+Note down the security group IDs (GroupId) of the desired security groups.
+
+### 7. Public TLS Certificate Key (publicTlsCertificateKey)
+You need the ARN of the Secrets Manager secret that contains your public TLS certificate private key.
+
+List all secrets in Secrets Manager:
+```bash
+aws secretsmanager list-secrets --query 'SecretList[*].[Name,ARN]' --output table
+```
+Find and note down the ARN of the secret that contains your public TLS certificate private key.
+
+
+## Optional Features
+
+### SSH Key Access
+
+To enable SSH access to the instances, set the environment variable `SSH_KEY_ENABLED` to `true`. You will also need the name of an existing EC2 KeyPair.
+
+1. List all EC2 KeyPairs:
+```bash
+aws ec2 describe-key-pairs --query 'KeyPairs[*].[KeyName]' --output table
+```
+Note down the KeyPair name (KeyName) you want to use.
+
+### CloudWatch Integration
+To enable CloudWatch logging and metrics, set the environment variable `CLOUDWATCH_ENABLED` to `true`.
+
+You can create or use existing log groups and metric namespaces in CloudWatch.
+
+#### List All CloudWatch Log Groups
+
+```bash
+aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output table
+```
+This command will return a table listing the names of all the log groups in your CloudWatch.
+
+#### List All CloudWatch Custom Metric Namespaces
+
+```bash
+aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
+```
+
+### Glue Schema Registry
+
+To enable the Glue Schema Registry for schema fetching, set the environment variable `GLUE_REGISTRY_ENABLED` to `true`. You will also need the name of the Glue Registry.
+
+1. List all Glue Registries:
+```bash
+aws glue list-registries --query 'Registries[*].[RegistryName]' --output table
+```
+Note down the Glue Registry name (RegistryName) you want to use.

@@ -1,0 +1,13 @@
+zillaPlusRole="aklivity-zilla-proxy"
+mskAccessCredentialsARN="arn:aws:secretsmanager:us-east-1:445711703002:secret:AmazonMSK_alice-rQAyBy"
+publicTlsCertificateKey="arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io7-UeTJku"
+mskClusterName="my-msk-cluster"
+publicTcpPort=7143
+zillaPlusSecurityGroups=["sg-055cabb5b6f9ab0c9"]
+subnetIds=["subnet-09e56b4e294228d74", "subnet-088d1e22fe315b4ee"]
+vpcId="vpc-0197a3d155f3f5407"
+cloudWatchLogsGroup="barnabas-log-group"
+cloudWatchMetricsNamespace="zilla-iot"
+keyName="iot-client-key"
+kafkaTopic="pets"
+glueRegistry="zilla"

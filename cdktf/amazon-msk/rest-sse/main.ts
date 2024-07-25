@@ -151,18 +151,18 @@ export class ZillaPlusRestSseStack extends TerraformStack {
         count: existingLogGroup.arn ? 0 : 1
       });
       
-      const logsSection = `
-        logs:
+      const logsSection = 
+`        logs:
           group: ${cloudWatchLogsGroup.stringValue}
           stream: events`;
     
   
-      const metricsSection = `
-        metrics:
+      const metricsSection =
+`        metrics:
           namespace: ${cloudWatchMetricsNamespace.stringValue}`;
 
-      zillaTelemetryContent = `
-telemetry:
+      zillaTelemetryContent = 
+`telemetry:
   metrics:
     - stream.active.received
     - stream.active.sent
@@ -183,10 +183,54 @@ telemetry:
 ${logsSection}
 ${metricsSection}`;
 
-    bindingTelemetryContent = `
-    telemetry:
+    bindingTelemetryContent = 
+`    telemetry:
       metrics:
         - stream.*`;
+    }
+
+
+    const GLUE_REGISTRY_ENABLED = process.env.GLUE_REGISTRY_ENABLED === "true";
+    let glueContent = '';
+    let kafkaCacheClientGlueContent = '';
+    let kafkaCacheServerGlueContent = '';
+
+    if (GLUE_REGISTRY_ENABLED)
+    {
+      const glueRegistry = new TerraformVariable(this, 'glueRegistry', {
+        type: 'string',
+        description: 'The Glue Registry to fetch the schemas from'
+      });
+
+      glueContent = 
+`catalogs:
+  glue_catalog:
+    type: aws-glue
+    options:
+      registry: ${glueRegistry.stringValue}`
+
+      kafkaCacheClientGlueContent = 
+`    options:
+      topics:
+        - name: ${topic}
+          value:
+            model: avro
+            view: json
+            catalog:
+              glue_catalog:
+                - strategy: topic
+                  version: latest`
+      
+      kafkaCacheServerGlueContent = 
+`      topics:
+        - name: ${topic}
+          value:
+            model: avro
+            view: json
+            catalog:
+              glue_catalog:
+                - strategy: topic
+                  version: latest`
     }
 
     const ami = new dataAwsAmi.DataAwsAmi(this, 'LatestAmi', {
@@ -247,6 +291,7 @@ ${metricsSection}`;
 
     const zillaYamlContent = `
 name: public
+${glueContent}
 ${zillaTelemetryContent}
 vaults:
   secure:
@@ -272,7 +317,33 @@ ${bindingTelemetryContent}
   north_http_server:
     type: http
     kind: server
-    exit: north_http_kafka_mapping
+${bindingTelemetryContent}
+    routes:
+      - when:
+          - headers:
+              :path: /streams${path}
+        exit: north_sse_server
+      - when:
+          - headers:
+              :path: ${path}/*
+          - headers:
+              :path: ${path}
+        exit: north_http_kafka_mapping
+  north_sse_server:
+    type: sse
+    kind: server
+${bindingTelemetryContent}
+    exit: north_sse_kafka_mapping
+  north_sse_kafka_mapping:
+    type: sse-kafka
+    kind: proxy
+${bindingTelemetryContent}
+    routes:
+      - when:
+          - path: /streams${path}
+        exit: kafka_cache_client
+        with:
+          topic: ${topic}
   north_http_kafka_mapping:
     type: http-kafka
     kind: proxy
@@ -323,6 +394,7 @@ ${bindingTelemetryContent}
   kafka_cache_client:
     type: kafka
     kind: cache_client
+${kafkaCacheClientGlueContent}
 ${bindingTelemetryContent}
     exit: kafka_cache_server
   kafka_cache_server:
@@ -332,6 +404,7 @@ ${bindingTelemetryContent}
     options:
       bootstrap:
         - ${topic.stringValue}
+${kafkaCacheServerGlueContent}
     exit: kafka_client
   kafka_client:
     type: kafka
