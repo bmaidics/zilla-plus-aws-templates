@@ -6,6 +6,8 @@ This guide will help you gather the necessary AWS values required to configure a
 
 1. Install AWS CLI: Follow the official [AWS CLI installation guide](https://docs.aws.amazon.com/cli/latest/userguide/install-cliv2.html).
 2. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
+3. Set your aws region: `aws configure set region us-east-1` 
+4. Verify your region and credentials: `aws configure list`
 
 ## Variables
 
@@ -141,3 +143,41 @@ To enable the Glue Schema Registry for schema fetching, set the environment vari
 aws glue list-registries --query 'Registries[*].[RegistryName]' --output table
 ```
 Note down the Glue Registry name (RegistryName) you want to use.
+
+## Deploy stack using Terraform
+
+### 1. Synthesize the Terraform Configuration
+First, you need to synthesize the Terraform configuration from the CDKTF code.
+
+Navigate to the CDKTF project directory.
+
+Run the following command to synthesize the configuration:
+
+```bash
+cdktf synth
+```
+This command will generate the necessary Terraform JSON configuration files in the cdktf.out directory.
+
+### 2. Navigate to the Terraform Configuration Folder
+After synthesizing the configuration, navigate to the folder where the Terraform JSON output is located:
+
+```bash
+cd cdktf.out/stacks/rest-sse
+```
+
+### 3. Run terraform plan
+
+```bash
+terraform plan
+```
+This command will show the execution plan, and you will be prompted to provide necessary input variables. You can manually enter these values when prompted, or use a .tfvars file to provide them.
+
+If you prefer to use a .tfvars file for input variables, create a file named terraform.tfvars and add your variables similar to the provided example `terraform.tfvars.example`.
+
+
+### 4. Apply the Terraform Plan
+Once you have reviewed the plan and provided the necessary inputs, apply the plan to deploy the resources:
+
+```bash
+terraform apply
+```
