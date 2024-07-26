@@ -28,7 +28,7 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
         target_group_arns: expect.arrayContaining(
           ["${aws_lb_target_group.NLBTargetGroup.arn}"]
         ),
-        vpc_zone_identifier: "${var.subnetIds}" 
+        vpc_zone_identifier: "${var.subnet_ids}" 
       });
   });
 
@@ -39,7 +39,7 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
     const output = Testing.synth(stack);
 
     expect(output).toHaveResourceWithProperties(CloudwatchLogGroup, {
-      name: "${var.cloudWatchLogsGroup}"
+      name: "${var.cloudwatch_logs_group}"
     })
     delete process.env.CLOUDWATCH_ENABLED;
   });
@@ -48,9 +48,9 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
 
     expect(output).toHaveResourceWithProperties(
       LbTargetGroup, {
-        vpc_id: "${var.vpcId}",
+        vpc_id: "${var.vpc_id}",
         name: "nlb-target-group",
-        port: "${var.publicTcpPort}",
+        port: "${var.public_tcp_port}",
         protocol: "TCP"
       });
   });
@@ -63,8 +63,8 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
         internal: false,
         load_balancer_type: "network",
         name: "network-load-balancer",
-        security_groups: "${var.zillaPlusSecurityGroups}",
-        subnets: "${var.subnetIds}"
+        security_groups: "${var.zilla_plus_security_groups}",
+        subnets: "${var.subnet_ids}"
       });
   });
 
@@ -79,7 +79,7 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
           }
         ],
         load_balancer_arn: "${aws_lb.NetworkLoadBalancer.arn}",
-        port: "${var.publicTcpPort}",
+        port: "${var.public_tcp_port}",
         protocol: "TCP"
       });
   });
@@ -90,16 +90,16 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
     expect(output).toHaveResourceWithProperties(
       launchTemplate.LaunchTemplate, {
         iam_instance_profile: {
-          name: "${var.zillaPlusRole}"
+          name: "${var.zilla_plus_role}"
         },
         image_id: "${data.aws_ami.LatestAmi.image_id}",
-        instance_type: "${var.instanceType}",
+        instance_type: "${var.instance_type}",
         key_name: "",
         network_interfaces: [
           {
             associate_public_ip_address: "true",
             device_index: 0,
-            security_groups: "${var.zillaPlusSecurityGroups}"
+            security_groups: "${var.zilla_plus_security_groups}"
           }
         ],
       });

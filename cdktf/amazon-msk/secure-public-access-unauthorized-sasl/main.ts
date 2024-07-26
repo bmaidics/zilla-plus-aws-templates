@@ -19,22 +19,22 @@ export class ZillaPlusSecurePublicAccessUnauthorizedSaslStack extends TerraformS
     const awsProvider = new AwsProvider(this, "AWS", {
     });
 
-    const vpcId = new TerraformVariable(this, 'vpcId', {
+    const vpcId = new TerraformVariable(this, 'vpc_id', {
       type: 'string',
       description: 'VpcId of your existing Virtual Private Cloud (VPC)',
     });
 
-    const subnetIds = new TerraformVariable(this, 'subnetIds', {
+    const subnetIds = new TerraformVariable(this, 'subnet_ids', {
       type: 'list(string)',
       description: 'The list of SubnetIds in your Virtual Private Cloud (VPC)',
     });
 
-    const mskClusterName = new TerraformVariable(this, 'mskClusterName', {
+    const mskClusterName = new TerraformVariable(this, 'msk_cluster_name', {
       type: 'string',
       description: 'The name of the MSK cluster'
     });
 
-    const mskAccessMethod = new TerraformVariable(this, 'mskAccessMethod', {
+    const mskAccessMethod = new TerraformVariable(this, 'msk_access_method', {
       type: 'string',
       description: 'The access method used by Zilla Plus to connect to the MSK cluster ["SASL/SCRAM", "Unauthenticated"]'
     });
@@ -57,34 +57,34 @@ export class ZillaPlusSecurePublicAccessUnauthorizedSaslStack extends TerraformS
     const mskBootstrapCommonPart = Fn.join('.', Fn.slice(addressParts, 1, Fn.lengthOf(addressParts)));
     const mskWildcardDNS = Fn.format('*.%s', [mskBootstrapCommonPart]);
 
-    const zillaPlusCapacity = new TerraformVariable(this, 'zillaPlusCapacity', {
+    const zillaPlusCapacity = new TerraformVariable(this, 'zilla_plus_capacity', {
       type: 'number',
       default: 2,
       description: 'The initial number of Zilla Plus instances'
     });
 
-    const zillaPlusRole = new TerraformVariable(this, 'zillaPlusRole', {
+    const zillaPlusRole = new TerraformVariable(this, 'zilla_plus_role', {
       type: 'string',
       description: 'The role name assumed by Zilla Plus instances.',
     });
 
-    const zillaPlusSecurityGroups = new TerraformVariable(this, 'zillaPlusSecurityGroups', {
+    const zillaPlusSecurityGroups = new TerraformVariable(this, 'zilla_plus_security_groups', {
       type: 'list(string)',
       description: 'The security groups associated with Zilla Plus instances.',
     });
 
-    const publicPort = new TerraformVariable(this, 'publicPort', {
+    const publicPort = new TerraformVariable(this, 'public_port', {
       type: 'number',
       default: 9094,
       description: 'The public port number to be used by Kafka clients',
     });
 
-    const publicWildcardDNS = new TerraformVariable(this, 'publicWildcardDNS', {
+    const publicWildcardDNS = new TerraformVariable(this, 'public_wildcard_dns', {
       type: 'string',
       description: 'The public wildcard DNS pattern for bootstrap servers to be used by Kafka clients'
     });
 
-    const publicTlsCertificateKey = new TerraformVariable(this, 'publicTlsCertificateKey', {
+    const publicTlsCertificateKey = new TerraformVariable(this, 'public_tls_certificate_key', {
       type: 'string',
       description: 'TLS Certificate Private Key Secret ARN'
     });
@@ -98,7 +98,7 @@ export class ZillaPlusSecurePublicAccessUnauthorizedSaslStack extends TerraformS
 
     if (SSH_KEY_ENABLED)
     {
-      const keyNameVar = new TerraformVariable(this, 'keyName', {
+      const keyNameVar = new TerraformVariable(this, 'key_name', {
         type: 'string',
         description: 'Name of an existing EC2 KeyPair to enable SSH access to the instances'
       });
@@ -116,13 +116,13 @@ export class ZillaPlusSecurePublicAccessUnauthorizedSaslStack extends TerraformS
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
-      const cloudWatchLogsGroup = new TerraformVariable(this, 'cloudWatchLogsGroup', {
+      const cloudWatchLogsGroup = new TerraformVariable(this, 'cloudwatch_logs_group', {
         type: 'string',
         description: 'The Cloud Watch log group Zilla Plush should publish logs',
         default: defaultLogGroupName
       });
   
-      const cloudWatchMetricsNamespace = new TerraformVariable(this, 'cloudWatchMetricsNamespace', {
+      const cloudWatchMetricsNamespace = new TerraformVariable(this, 'cloudwatch_metrics_namespace', {
         type: 'string',
         description: 'The Cloud Watch metrics namespace Zilla Plush should publish metrics',
         default: defaultMetricNamespace
@@ -167,7 +167,7 @@ ${metricsSection}`;
       }
     
 
-    const instanceType = new TerraformVariable(this, 'instanceType', {
+    const instanceType = new TerraformVariable(this, 'instance_type', {
       type: 'string',
       default: 't3.small',
       description: 'Zilla Plus EC2 instance type'
