@@ -9,6 +9,14 @@ This guide will help you gather the necessary AWS values required to configure a
 3. Set your aws region: `aws configure set region us-east-1` 
 4. Verify your region and credentials: `aws configure list`
 
+```bash
+      Name                    Value             Type    Location
+      ----                    -----             ----    --------
+   profile                <not set>             None    None
+access_key     ****************XXXX              env
+secret_key     ****************XXXX              env
+    region                us-east-1      config-file    ~/.aws/config
+```
 ## Variables
 
 ### 1. VPC ID (`vpcId`)
