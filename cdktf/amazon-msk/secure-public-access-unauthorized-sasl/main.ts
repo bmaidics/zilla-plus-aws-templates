@@ -189,6 +189,7 @@ ${metricsSection}`;
           values: ['true']
         }
       ],
+      owners: ['679593333241']
     });
 
     const region = awsProvider.region ?? "us-east-1";
