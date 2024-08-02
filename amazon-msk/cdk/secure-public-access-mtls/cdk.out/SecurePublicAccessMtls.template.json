@@ -1,0 +1,218 @@
+{
+ "Resources": {
+  "NetworkLoadBalancer8E753273": {
+   "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+   "Properties": {
+    "LoadBalancerAttributes": [
+     {
+      "Key": "deletion_protection.enabled",
+      "Value": "false"
+     },
+     {
+      "Key": "load_balancing.cross_zone.enabled",
+      "Value": "true"
+     }
+    ],
+    "Scheme": "internet-facing",
+    "Subnets": [
+     "subnet-088d1e22fe315b4ee",
+     "subnet-09e56b4e294228d74"
+    ],
+    "Type": "network"
+   },
+   "Metadata": {
+    "aws:cdk:path": "SecurePublicAccessMtls/NetworkLoadBalancer/Resource"
+   }
+  },
+  "NLBTargetGroup514B86FD": {
+   "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+   "Properties": {
+    "Port": 9094,
+    "Protocol": "TCP",
+    "TargetType": "alb",
+    "VpcId": "vpc-0197a3d155f3f5407"
+   },
+   "Metadata": {
+    "aws:cdk:path": "SecurePublicAccessMtls/NLBTargetGroup/Resource"
+   }
+  },
+  "NLBListener144CD98A": {
+   "Type": "AWS::ElasticLoadBalancingV2::Listener",
+   "Properties": {
+    "DefaultActions": [
+     {
+      "TargetGroupArn": {
+       "Ref": "NLBTargetGroup514B86FD"
+      },
+      "Type": "forward"
+     }
+    ],
+    "LoadBalancerArn": {
+     "Ref": "NetworkLoadBalancer8E753273"
+    },
+    "Protocol": "TCP"
+   },
+   "Metadata": {
+    "aws:cdk:path": "SecurePublicAccessMtls/NLBListener/Resource"
+   }
+  },
+  "ZillaPlusLaunchTemplateProfile97F4EC7E": {
+   "Type": "AWS::IAM::InstanceProfile",
+   "Properties": {
+    "Roles": [
+     "aklivity-zilla-proxy"
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "SecurePublicAccessMtls/ZillaPlusLaunchTemplate/Profile"
+   }
+  },
+  "ZillaPlusLaunchTemplate409A5F73": {
+   "Type": "AWS::EC2::LaunchTemplate",
+   "Properties": {
+    "LaunchTemplateData": {
+     "IamInstanceProfile": {
+      "Arn": {
+       "Fn::GetAtt": [
+        "ZillaPlusLaunchTemplateProfile97F4EC7E",
+        "Arn"
+       ]
+      }
+     },
+     "ImageId": "ami-1234",
+     "InstanceType": "t3.small",
+     "KeyName": "",
+     "SecurityGroupIds": [
+      "sg-055cabb5b6f9ab0c9"
+     ],
+     "TagSpecifications": [
+      {
+       "ResourceType": "instance",
+       "Tags": [
+        {
+         "Key": "Name",
+         "Value": "SecurePublicAccessMtls/ZillaPlusLaunchTemplate"
+        }
+       ]
+      },
+      {
+       "ResourceType": "volume",
+       "Tags": [
+        {
+         "Key": "Name",
+         "Value": "SecurePublicAccessMtls/ZillaPlusLaunchTemplate"
+        }
+       ]
+      }
+     ],
+     "UserData": {
+      "Fn::Base64": "#!/bin/bash -xe\nyum update -y aws-cfn-bootstrap\ncat <<EOF > /etc/zilla/zilla.yaml\n\nname: public\nvaults:\n  secure:\n    type: aws\n\nbindings:\n  tcp_server:\n    type: tcp\n    kind: server\n    options:\n      host: 0.0.0.0\n      port: undefined\n\n    exit: tls_server\n  tls_server:\n    type: tls\n    kind: server\n    vault: secure\n    options:\n      keys:\n      - arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io7-UeTJku\n      trust:\n      - arn:aws:acm-pca:us-east-1:445711703002:certificate-authority/b34a5b1a-7537-40b1-a269-421af4ebb398\n    routes:\n    - exit: kafka_proxy\n      when:\n      - authority: '*.example.aklivity.io'\n  kafka_proxy:\n    type: kafka-proxy\n    kind: proxy\n    options:\n      external:\n        host: 'b-#.example.aklivity.io'\n        port: undefined\n      internal:\n        host: 'b-#.'\n        port: 'mskPort'\n    exit: tls_client\n  tls_client:\n    type: tls\n    kind: client\n    vault: secure\n    options:\n      signers:\n      - arn:aws:acm-pca:us-east-1:445711703002:certificate-authority/b34a5b1a-7537-40b1-a269-421af4ebb398\n      trustcacerts: true\n    exit: tcp_client\n  tcp_client:\n    type: tcp\n    kind: client\n    options:\n      host: '*'\n      port: 'mskPort'\n    routes:\n    - when:\n      - authority: 'mskWildcardDNS'\n    \nEOF\n\nchown ec2-user:ec2-user /etc/zilla/zilla.yaml\n\nmkdir /etc/cfn\ncat <<EOF > /etc/cfn/cfn-hup.conf\n\n[main]\nstack=SecurePublicAccessMtls\nregion=us-east-1\n    \nEOF\n\nchown root:root /etc/cfn/cfn-hup.conf\nchmod 0400 /etc/cfn/cfn-hup.conf\n\nmkdir /etc/cfn/hooks.d\ncat <<EOF > /etc/cfn/hooks.d/cfn-auto-reloader.conf\n\n[cfn-auto-reloader-hook]\ntriggers=post.update\npath=Resources.ZillaPlusLaunchTemplate.Metadata.AWS::CloudFormation::Init\naction=/opt/aws/bin/cfn-init -v --stack SecurePublicAccessMtls --resource ZillaPlusLaunchTemplate --region us-east-1\nrunas=root\n    \nEOF\n\nchown root:root /etc/cfn/hooks.d/cfn-auto-reloader.conf\nchmod 0400 /etc/cfn/hooks.d/cfn-auto-reloader.conf\n\nsystemctl enable cfn-hup\nsystemctl start cfn-hup\nsystemctl enable amazon-ssm-agent\nsystemctl start amazon-ssm-agent\nsystemctl enable zilla-plus\nsystemctl start zilla-plus\n\n    "
+     }
+    },
+    "TagSpecifications": [
+     {
+      "ResourceType": "launch-template",
+      "Tags": [
+       {
+        "Key": "Name",
+        "Value": "SecurePublicAccessMtls/ZillaPlusLaunchTemplate"
+       }
+      ]
+     }
+    ]
+   },
+   "Metadata": {
+    "aws:cdk:path": "SecurePublicAccessMtls/ZillaPlusLaunchTemplate/Resource"
+   }
+  },
+  "ZillaPlusGroupASGBECC4A43": {
+   "Type": "AWS::AutoScaling::AutoScalingGroup",
+   "Properties": {
+    "LaunchTemplate": {
+     "LaunchTemplateId": {
+      "Ref": "ZillaPlusLaunchTemplate409A5F73"
+     },
+     "Version": {
+      "Fn::GetAtt": [
+       "ZillaPlusLaunchTemplate409A5F73",
+       "LatestVersionNumber"
+      ]
+     }
+    },
+    "MaxSize": "5",
+    "MinSize": "1",
+    "TargetGroupARNs": [
+     {
+      "Ref": "NLBTargetGroup514B86FD"
+     }
+    ],
+    "VPCZoneIdentifier": [
+     "subnet-0c33d19905990377e",
+     "subnet-06f9b6fd6eee840a3"
+    ]
+   },
+   "UpdatePolicy": {
+    "AutoScalingScheduledAction": {
+     "IgnoreUnmodifiedGroupSizeProperties": true
+    }
+   },
+   "Metadata": {
+    "aws:cdk:path": "SecurePublicAccessMtls/ZillaPlusGroup/ASG"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/12QQW/CMAyFfwv31NBKcN92mCYhQMB9MqlhpmlSJQ4cqvx3UijT2Ml+n5/sJ1dQzmcwm+A1FLpuCsMH6HeCulFbCi56TSrPvnsyGIS1cVgf0KDVbE+XCvoVydX5Zpn5+52TVx9H+6JHzx79ieTTu9gNlr/yuYWDkB03jH1SpPOdJUarf/bUdgaF7oYXkhRjCxl/2SDD2Y13RzY5fRQXNJqcF/q3LHYP8ZvjP0tpoOsoXZShe/4hKetqgnOYXqoSFlBOzoG58NEKtwTbR70BtQl44VEBAAA="
+   },
+   "Metadata": {
+    "aws:cdk:path": "SecurePublicAccessMtls/CDKMetadata/Default"
+   }
+  }
+ },
+ "Outputs": {
+  "NetworkLoadBalancerOutput": {
+   "Description": "Public DNS name of newly created NLB for Zilla Plus",
+   "Value": {
+    "Fn::GetAtt": [
+     "NetworkLoadBalancer8E753273",
+     "DNSName"
+    ]
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/hnb659fds/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}

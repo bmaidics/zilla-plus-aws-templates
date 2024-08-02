@@ -1,0 +1,374 @@
+{
+  "version": "tree-0.1",
+  "tree": {
+    "id": "App",
+    "path": "",
+    "children": {
+      "SecurePublicAccessMtls": {
+        "id": "SecurePublicAccessMtls",
+        "path": "SecurePublicAccessMtls",
+        "children": {
+          "publicTlsCertificateKey": {
+            "id": "publicTlsCertificateKey",
+            "path": "SecurePublicAccessMtls/publicTlsCertificateKey",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.Resource",
+              "version": "2.150.0"
+            }
+          },
+          "Vpc": {
+            "id": "Vpc",
+            "path": "SecurePublicAccessMtls/Vpc",
+            "children": {
+              "PublicSubnet1": {
+                "id": "PublicSubnet1",
+                "path": "SecurePublicAccessMtls/Vpc/PublicSubnet1",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.Resource",
+                  "version": "2.150.0"
+                }
+              },
+              "PublicSubnet2": {
+                "id": "PublicSubnet2",
+                "path": "SecurePublicAccessMtls/Vpc/PublicSubnet2",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.Resource",
+                  "version": "2.150.0"
+                }
+              },
+              "IsolatedSubnet1": {
+                "id": "IsolatedSubnet1",
+                "path": "SecurePublicAccessMtls/Vpc/IsolatedSubnet1",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.Resource",
+                  "version": "2.150.0"
+                }
+              },
+              "IsolatedSubnet2": {
+                "id": "IsolatedSubnet2",
+                "path": "SecurePublicAccessMtls/Vpc/IsolatedSubnet2",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.Resource",
+                  "version": "2.150.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.Resource",
+              "version": "2.150.0"
+            }
+          },
+          "NetworkLoadBalancer": {
+            "id": "NetworkLoadBalancer",
+            "path": "SecurePublicAccessMtls/NetworkLoadBalancer",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "SecurePublicAccessMtls/NetworkLoadBalancer/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+                  "aws:cdk:cloudformation:props": {
+                    "loadBalancerAttributes": [
+                      {
+                        "key": "deletion_protection.enabled",
+                        "value": "false"
+                      },
+                      {
+                        "key": "load_balancing.cross_zone.enabled",
+                        "value": "true"
+                      }
+                    ],
+                    "scheme": "internet-facing",
+                    "subnets": [
+                      "subnet-088d1e22fe315b4ee",
+                      "subnet-09e56b4e294228d74"
+                    ],
+                    "type": "network"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.CfnLoadBalancer",
+                  "version": "2.150.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.NetworkLoadBalancer",
+              "version": "2.150.0"
+            }
+          },
+          "NLBTargetGroup": {
+            "id": "NLBTargetGroup",
+            "path": "SecurePublicAccessMtls/NLBTargetGroup",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "SecurePublicAccessMtls/NLBTargetGroup/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+                  "aws:cdk:cloudformation:props": {
+                    "port": 9094,
+                    "protocol": "TCP",
+                    "targetType": "alb",
+                    "vpcId": "vpc-0197a3d155f3f5407"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.CfnTargetGroup",
+                  "version": "2.150.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.NetworkTargetGroup",
+              "version": "2.150.0"
+            }
+          },
+          "NLBListener": {
+            "id": "NLBListener",
+            "path": "SecurePublicAccessMtls/NLBListener",
+            "children": {
+              "Resource": {
+                "id": "Resource",
+                "path": "SecurePublicAccessMtls/NLBListener/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::ElasticLoadBalancingV2::Listener",
+                  "aws:cdk:cloudformation:props": {
+                    "defaultActions": [
+                      {
+                        "type": "forward",
+                        "targetGroupArn": {
+                          "Ref": "NLBTargetGroup514B86FD"
+                        }
+                      }
+                    ],
+                    "loadBalancerArn": {
+                      "Ref": "NetworkLoadBalancer8E753273"
+                    },
+                    "protocol": "TCP"
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.CfnListener",
+                  "version": "2.150.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_elasticloadbalancingv2.NetworkListener",
+              "version": "2.150.0"
+            }
+          },
+          "ZillaPlusSecurityGroup": {
+            "id": "ZillaPlusSecurityGroup",
+            "path": "SecurePublicAccessMtls/ZillaPlusSecurityGroup",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.Resource",
+              "version": "2.150.0"
+            }
+          },
+          "ZillaPlusRole": {
+            "id": "ZillaPlusRole",
+            "path": "SecurePublicAccessMtls/ZillaPlusRole",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.Resource",
+              "version": "2.150.0"
+            }
+          },
+          "ZillaPlusLaunchTemplate": {
+            "id": "ZillaPlusLaunchTemplate",
+            "path": "SecurePublicAccessMtls/ZillaPlusLaunchTemplate",
+            "children": {
+              "Profile": {
+                "id": "Profile",
+                "path": "SecurePublicAccessMtls/ZillaPlusLaunchTemplate/Profile",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::IAM::InstanceProfile",
+                  "aws:cdk:cloudformation:props": {
+                    "roles": [
+                      "aklivity-zilla-proxy"
+                    ]
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_iam.CfnInstanceProfile",
+                  "version": "2.150.0"
+                }
+              },
+              "Resource": {
+                "id": "Resource",
+                "path": "SecurePublicAccessMtls/ZillaPlusLaunchTemplate/Resource",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::EC2::LaunchTemplate",
+                  "aws:cdk:cloudformation:props": {
+                    "launchTemplateData": {
+                      "iamInstanceProfile": {
+                        "arn": {
+                          "Fn::GetAtt": [
+                            "ZillaPlusLaunchTemplateProfile97F4EC7E",
+                            "Arn"
+                          ]
+                        }
+                      },
+                      "imageId": "ami-1234",
+                      "instanceType": "t3.small",
+                      "keyName": "",
+                      "securityGroupIds": [
+                        "sg-055cabb5b6f9ab0c9"
+                      ],
+                      "tagSpecifications": [
+                        {
+                          "resourceType": "instance",
+                          "tags": [
+                            {
+                              "key": "Name",
+                              "value": "SecurePublicAccessMtls/ZillaPlusLaunchTemplate"
+                            }
+                          ]
+                        },
+                        {
+                          "resourceType": "volume",
+                          "tags": [
+                            {
+                              "key": "Name",
+                              "value": "SecurePublicAccessMtls/ZillaPlusLaunchTemplate"
+                            }
+                          ]
+                        }
+                      ],
+                      "userData": {
+                        "Fn::Base64": "#!/bin/bash -xe\nyum update -y aws-cfn-bootstrap\ncat <<EOF > /etc/zilla/zilla.yaml\n\nname: public\nvaults:\n  secure:\n    type: aws\n\nbindings:\n  tcp_server:\n    type: tcp\n    kind: server\n    options:\n      host: 0.0.0.0\n      port: undefined\n\n    exit: tls_server\n  tls_server:\n    type: tls\n    kind: server\n    vault: secure\n    options:\n      keys:\n      - arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io7-UeTJku\n      trust:\n      - arn:aws:acm-pca:us-east-1:445711703002:certificate-authority/b34a5b1a-7537-40b1-a269-421af4ebb398\n    routes:\n    - exit: kafka_proxy\n      when:\n      - authority: '*.example.aklivity.io'\n  kafka_proxy:\n    type: kafka-proxy\n    kind: proxy\n    options:\n      external:\n        host: 'b-#.example.aklivity.io'\n        port: undefined\n      internal:\n        host: 'b-#.'\n        port: 'mskPort'\n    exit: tls_client\n  tls_client:\n    type: tls\n    kind: client\n    vault: secure\n    options:\n      signers:\n      - arn:aws:acm-pca:us-east-1:445711703002:certificate-authority/b34a5b1a-7537-40b1-a269-421af4ebb398\n      trustcacerts: true\n    exit: tcp_client\n  tcp_client:\n    type: tcp\n    kind: client\n    options:\n      host: '*'\n      port: 'mskPort'\n    routes:\n    - when:\n      - authority: 'mskWildcardDNS'\n    \nEOF\n\nchown ec2-user:ec2-user /etc/zilla/zilla.yaml\n\nmkdir /etc/cfn\ncat <<EOF > /etc/cfn/cfn-hup.conf\n\n[main]\nstack=SecurePublicAccessMtls\nregion=us-east-1\n    \nEOF\n\nchown root:root /etc/cfn/cfn-hup.conf\nchmod 0400 /etc/cfn/cfn-hup.conf\n\nmkdir /etc/cfn/hooks.d\ncat <<EOF > /etc/cfn/hooks.d/cfn-auto-reloader.conf\n\n[cfn-auto-reloader-hook]\ntriggers=post.update\npath=Resources.ZillaPlusLaunchTemplate.Metadata.AWS::CloudFormation::Init\naction=/opt/aws/bin/cfn-init -v --stack SecurePublicAccessMtls --resource ZillaPlusLaunchTemplate --region us-east-1\nrunas=root\n    \nEOF\n\nchown root:root /etc/cfn/hooks.d/cfn-auto-reloader.conf\nchmod 0400 /etc/cfn/hooks.d/cfn-auto-reloader.conf\n\nsystemctl enable cfn-hup\nsystemctl start cfn-hup\nsystemctl enable amazon-ssm-agent\nsystemctl start amazon-ssm-agent\nsystemctl enable zilla-plus\nsystemctl start zilla-plus\n\n    "
+                      }
+                    },
+                    "tagSpecifications": [
+                      {
+                        "resourceType": "launch-template",
+                        "tags": [
+                          {
+                            "key": "Name",
+                            "value": "SecurePublicAccessMtls/ZillaPlusLaunchTemplate"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_ec2.CfnLaunchTemplate",
+                  "version": "2.150.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_ec2.LaunchTemplate",
+              "version": "2.150.0"
+            }
+          },
+          "ZillaPlusGroup": {
+            "id": "ZillaPlusGroup",
+            "path": "SecurePublicAccessMtls/ZillaPlusGroup",
+            "children": {
+              "ASG": {
+                "id": "ASG",
+                "path": "SecurePublicAccessMtls/ZillaPlusGroup/ASG",
+                "attributes": {
+                  "aws:cdk:cloudformation:type": "AWS::AutoScaling::AutoScalingGroup",
+                  "aws:cdk:cloudformation:props": {
+                    "launchTemplate": {
+                      "launchTemplateId": {
+                        "Ref": "ZillaPlusLaunchTemplate409A5F73"
+                      },
+                      "version": {
+                        "Fn::GetAtt": [
+                          "ZillaPlusLaunchTemplate409A5F73",
+                          "LatestVersionNumber"
+                        ]
+                      }
+                    },
+                    "maxSize": "5",
+                    "minSize": "1",
+                    "targetGroupArns": [
+                      {
+                        "Ref": "NLBTargetGroup514B86FD"
+                      }
+                    ],
+                    "vpcZoneIdentifier": [
+                      "subnet-0c33d19905990377e",
+                      "subnet-06f9b6fd6eee840a3"
+                    ]
+                  }
+                },
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.aws_autoscaling.CfnAutoScalingGroup",
+                  "version": "2.150.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.aws_autoscaling.AutoScalingGroup",
+              "version": "2.150.0"
+            }
+          },
+          "NetworkLoadBalancerOutput": {
+            "id": "NetworkLoadBalancerOutput",
+            "path": "SecurePublicAccessMtls/NetworkLoadBalancerOutput",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnOutput",
+              "version": "2.150.0"
+            }
+          },
+          "CDKMetadata": {
+            "id": "CDKMetadata",
+            "path": "SecurePublicAccessMtls/CDKMetadata",
+            "children": {
+              "Default": {
+                "id": "Default",
+                "path": "SecurePublicAccessMtls/CDKMetadata/Default",
+                "constructInfo": {
+                  "fqn": "aws-cdk-lib.CfnResource",
+                  "version": "2.150.0"
+                }
+              }
+            },
+            "constructInfo": {
+              "fqn": "constructs.Construct",
+              "version": "10.3.0"
+            }
+          },
+          "BootstrapVersion": {
+            "id": "BootstrapVersion",
+            "path": "SecurePublicAccessMtls/BootstrapVersion",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnParameter",
+              "version": "2.150.0"
+            }
+          },
+          "CheckBootstrapVersion": {
+            "id": "CheckBootstrapVersion",
+            "path": "SecurePublicAccessMtls/CheckBootstrapVersion",
+            "constructInfo": {
+              "fqn": "aws-cdk-lib.CfnRule",
+              "version": "2.150.0"
+            }
+          }
+        },
+        "constructInfo": {
+          "fqn": "aws-cdk-lib.Stack",
+          "version": "2.150.0"
+        }
+      },
+      "Tree": {
+        "id": "Tree",
+        "path": "Tree",
+        "constructInfo": {
+          "fqn": "constructs.Construct",
+          "version": "10.3.0"
+        }
+      }
+    },
+    "constructInfo": {
+      "fqn": "aws-cdk-lib.App",
+      "version": "2.150.0"
+    }
+  }
+}
