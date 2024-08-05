@@ -27,8 +27,8 @@ brew install hashicorp/tap/terraform
 10. Verify that CDKTF is installed correctly. `cdktf --version`
 
 ## (optional) Create an example MSK cluster
-If you don't have an existing MSK cluster you can use our sample MSK deployment with basic configuration and Unauthorized access. 
-Use `cdktf deploy` inside the `example-cluster` folder to deploy the sample MSK cluster.
+If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and Unauthorized access. 
+Use `cdktf deploy` inside the `example-cluster` folder to deploy the example MSK cluster.
 Note the `mskClusterName` from the outputs as you'll need this later.
 
 ## Variables

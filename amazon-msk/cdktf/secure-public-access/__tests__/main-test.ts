@@ -1,18 +1,18 @@
 import "cdktf/lib/testing/adapters/jest";
 import { Testing } from "cdktf";
-import { ZillaPlusSecurePublicAccessMtlsStack } from "../main";
+import { ZillaPlusSecurePublicAccessStack } from "../main";
 import { CloudwatchLogGroup } from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 import { autoscalingGroup, launchTemplate } from "@cdktf/provider-aws";
 import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 
-describe("Zilla Plus Public Access Mtls Stack Test", () => {
+describe("Zilla Plus Public Access Stack Test", () => {
   let output: string;
 
   beforeAll(() => {
     const app = Testing.app();
-    const stack = new ZillaPlusSecurePublicAccessMtlsStack(app, "test");
+    const stack = new ZillaPlusSecurePublicAccessStack(app, "test");
     output = Testing.synth(stack);
   });
 
@@ -28,27 +28,28 @@ describe("Zilla Plus Public Access Mtls Stack Test", () => {
         target_group_arns: expect.arrayContaining(
           ["${aws_lb_target_group.NLBTargetGroup.arn}"]
         ),
-        vpc_zone_identifier: "${var.subnet_ids}" 
+        vpc_zone_identifier: [
+          "${aws_subnet.PublicSubnet1.id}",
+          "${aws_subnet.PublicSubnet2.id}"
+        ]
       });
   });
 
   it("should have cloudwatch group resource", async () => {
-    process.env.CLOUDWATCH_ENABLED="true";
     const app = Testing.app();
-    const stack = new ZillaPlusSecurePublicAccessMtlsStack(app, "test");
+    const stack = new ZillaPlusSecurePublicAccessStack(app, "test");
     const output = Testing.synth(stack);
 
     expect(output).toHaveResourceWithProperties(CloudwatchLogGroup, {
       name: "${var.cloudwatch_logs_group}"
     })
-    delete process.env.CLOUDWATCH_ENABLED;
   });
 
   it("should have load balancer target group", async () => {
 
     expect(output).toHaveResourceWithProperties(
       LbTargetGroup, {
-        vpc_id: "${var.vpc_id}",
+        vpc_id: "${data.aws_vpc.Vpc.id}",
         name: "nlb-target-group",
         port: "${var.public_port}",
         protocol: "TCP"
@@ -63,12 +64,14 @@ describe("Zilla Plus Public Access Mtls Stack Test", () => {
         internal: false,
         load_balancer_type: "network",
         name: "network-load-balancer",
-        subnets: "${var.subnet_ids}"
+        subnets: [
+          "${aws_subnet.PublicSubnet1.id}",
+          "${aws_subnet.PublicSubnet2.id}"
+        ]
       });
   });
 
   it("should have load balancer listener", async () => {
-
     expect(output).toHaveResourceWithProperties(
       LbListener, {
         default_action: [
@@ -77,7 +80,7 @@ describe("Zilla Plus Public Access Mtls Stack Test", () => {
             "type": "forward"
           }
         ],
-        load_balancer_arn: "${aws_lb.NetworkLoadBalancer.arn}",
+        load_balancer_arn: "${aws_lb.NetworkLoadBalancer-test.arn}",
         port: "${var.public_port}",
         protocol: "TCP"
       });
@@ -89,16 +92,18 @@ describe("Zilla Plus Public Access Mtls Stack Test", () => {
     expect(output).toHaveResourceWithProperties(
       launchTemplate.LaunchTemplate, {
         iam_instance_profile: {
-          name: "${var.zilla_plus_role}"
+          name: "${aws_iam_instance_profile.zilla_plus_instance_profile.name}"
         },
         image_id: "${data.aws_ami.LatestAmi.image_id}",
-        instance_type: "${var.instance_type}",
+        instance_type: "${var.zilla_plus_instance_type}",
         key_name: "",
         network_interfaces: [
           {
             associate_public_ip_address: "true",
             device_index: 0,
-            security_groups: "${var.zilla_plus_security_groups}"
+            security_groups: [
+              "${aws_security_group.ZillaPlusSecurityGroup.id}"
+            ]
           }
         ],
       });

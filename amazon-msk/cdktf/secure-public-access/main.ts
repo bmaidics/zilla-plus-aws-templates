@@ -357,7 +357,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
 
     if (SSH_KEY_ENABLED)
     {
-      const keyNameVar = new TerraformVariable(this, 'key_name', {
+      const keyNameVar = new TerraformVariable(this, 'zilla_plus_ssh_key', {
         type: 'string',
         description: 'Name of an existing EC2 KeyPair to enable SSH access to the instances'
       });
@@ -428,7 +428,7 @@ ${metricsSection}`;
         - stream.*`;
     }
 
-    const instanceType = new TerraformVariable(this, 'instance_type', {
+    const instanceType = new TerraformVariable(this, 'zilla_plus_instance_type', {
       type: 'string',
       default: 't3.small',
       description: 'Zilla Plus EC2 instance type'
