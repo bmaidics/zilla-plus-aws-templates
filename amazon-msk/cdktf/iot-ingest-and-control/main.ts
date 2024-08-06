@@ -1,5 +1,5 @@
 import { Construct } from "constructs";
-import { App, TerraformStack, TerraformOutput, TerraformVariable, Fn} from "cdktf";
+import { App, TerraformStack, TerraformOutput, TerraformVariable, Fn, Op, TerraformAsset, AssetType} from "cdktf";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
@@ -9,8 +9,27 @@ import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
 import { DataAwsSecretsmanagerSecretVersion } from "@cdktf/provider-aws/lib/data-aws-secretsmanager-secret-version";
 import { CloudwatchLogGroup } from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 import { DataAwsMskCluster } from "@cdktf/provider-aws/lib/data-aws-msk-cluster";
-import { DataAwsCloudwatchLogGroup } from "@cdktf/provider-aws/lib/data-aws-cloudwatch-log-group";
 import instanceTypes from "./instance-types";
+import { DataAwsRegion } from "@cdktf/provider-aws/lib/data-aws-region";
+import { DataAwsAvailabilityZones } from "@cdktf/provider-aws/lib/data-aws-availability-zones";
+import { DataAwsMskBrokerNodes } from "@cdktf/provider-aws/lib/data-aws-msk-broker-nodes";
+import { DataAwsSubnet } from "@cdktf/provider-aws/lib/data-aws-subnet";
+import { DataAwsSubnets } from "@cdktf/provider-aws/lib/data-aws-subnets";
+import { DataAwsVpc } from "@cdktf/provider-aws/lib/data-aws-vpc";
+import { InternetGateway } from "@cdktf/provider-aws/lib/internet-gateway";
+import { Route } from "@cdktf/provider-aws/lib/route";
+import { RouteTable } from "@cdktf/provider-aws/lib/route-table";
+import { RouteTableAssociation } from "@cdktf/provider-aws/lib/route-table-association";
+import { Subnet } from "@cdktf/provider-aws/lib/subnet";
+import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile";
+import { IamRole } from "@cdktf/provider-aws/lib/iam-role";
+import { IamRolePolicy } from "@cdktf/provider-aws/lib/iam-role-policy";
+import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
+import { S3Bucket } from "@cdktf/provider-aws/lib/s3-bucket";
+import * as path from 'path';
+import { S3Object } from "@cdktf/provider-aws/lib/s3-object";
+import { LambdaFunction } from "@cdktf/provider-aws/lib/lambda-function";
+import { LambdaInvocation } from "@cdktf/provider-aws/lib/lambda-invocation";
 
 export class ZillaPlusIotAndControlStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
@@ -19,23 +38,8 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
     const awsProvider = new AwsProvider(this, "AWS", {
     });
 
-    const vpcId = new TerraformVariable(this, 'vpc_id', {
-      type: 'string',
-      description: 'VpcId of your existing Virtual Private Cloud (VPC)',
-    });
-
-    const subnetIds = new TerraformVariable(this, 'subnet_ids', {
-      type: 'list(string)',
-      description: 'The list of SubnetIds in your Virtual Private Cloud (VPC)',
-    });
-
-    const mskAccessCredentialsARN = new TerraformVariable(this, 'msk_access_credentials_arn', {
-      type: 'string',
-      description: 'The MSK Access Credentials Secret ARN with JSON properties; username, password'
-    });
-    // Validate that the Credentials exists
-    new DataAwsSecretsmanagerSecretVersion(this, 'mskAccessCredentials', {
-      secretId: mskAccessCredentialsARN.stringValue,
+    const region = new DataAwsRegion(this, 'CurrentRegion', {
+      provider: awsProvider
     });
 
     const mskClusterName = new TerraformVariable(this, 'msk_cluster_name', {
@@ -46,6 +50,91 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
     const mskCluster = new DataAwsMskCluster(this, 'MSKCluster', {
       clusterName: mskClusterName.stringValue
     });
+
+    const mskAccessCredentialsName = new TerraformVariable(this, 'msk_access_credentials_name', {
+      type: 'string',
+      description: 'The MSK Access Credentials Secret ARN with JSON properties; username, password'
+    });
+    // Validate that the Credentials exists
+    new DataAwsSecretsmanagerSecretVersion(this, 'mskAccessCredentials', {
+      secretId: mskAccessCredentialsName.stringValue,
+    });
+
+    const mskClusterBrokerNodes = new DataAwsMskBrokerNodes(this, 'MSKClusterBrokerNodes', {
+      clusterArn: mskCluster.arn
+    });
+
+    const subnetId = mskClusterBrokerNodes.nodeInfoList.get(0).clientSubnet;
+
+    const subnet = new DataAwsSubnet(this, 'Subnet', {
+      id: subnetId
+    });
+
+    const vpc = new DataAwsVpc(this, 'Vpc', {
+      id: subnet.vpcId
+    });
+
+    const subnets = new DataAwsSubnets(this, 'PublicSubnets', {
+      filter: [
+        {
+          name: 'vpc-id',
+          values: [vpc.id],
+        }
+      ],
+    });
+
+    const igw = new InternetGateway(this, 'InternetGateway', {
+      vpcId: vpc.id,
+      tags: {
+        Name: 'my-igw',
+      },
+    });
+
+    const publicRouteTable = new RouteTable(this, 'PublicRouteTable', {
+      vpcId: vpc.id,
+      tags: {
+        Name: 'public-route-table',
+      },
+    });
+
+    new Route(this, 'PublicRoute', {
+      routeTableId: publicRouteTable.id,
+      destinationCidrBlock: '0.0.0.0/0',
+      gatewayId: igw.id,
+    });
+
+    const availabilityZones = new DataAwsAvailabilityZones(this, 'AZs', {});
+    const subnetOffset = subnets.ids.length;
+    const subnetMask = Fn.parseint(Fn.element(Fn.split("/", vpc.cidrBlock), 1), 10);
+    const availableIpv4 = subnet.availableIpAddressCount;
+    // Math magic to find next power of 2 and based on that the subnetAddressPower
+    const subnetAddressPower = Fn.log(Fn.pow(2, Fn.ceil(Fn.log(availableIpv4, 2))), 2);
+    const subnetsMax = Op.sub(32 , Op.add(subnetAddressPower, subnetMask));
+
+    const subnetIds = []
+    for (let i = 1; i < 3; i++) {
+      const az = Fn.element(availabilityZones.names, i);
+      const subnetIndex = subnetOffset + i;
+      const cidrBlock = Fn.cidrsubnet(vpc.cidrBlock, subnetsMax, subnetIndex + i);
+
+      const subnet = new Subnet(this, `PublicSubnet${i}`, {
+        vpcId: vpc.id,
+        cidrBlock: cidrBlock,
+        availabilityZone: az,
+        mapPublicIpOnLaunch: true,
+        tags: {
+          Name: `public-subnet--${(subnetIndex + 1)}`
+        }
+      });
+
+      subnetIds.push(subnet.id);
+
+      new RouteTableAssociation(this, `PublicSubnet${i}RouteTableAssociation`, {
+        subnetId: subnet.id,
+        routeTableId: publicRouteTable.id,
+      });
+    }
+
 
     const kafkaTopicMqttSessions = new TerraformVariable(this, 'kafka_topic_mqtt_sessions', {
       type: 'string',
@@ -65,26 +154,150 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       default: 'mqtt-retained'
     });
 
-    const zillaPlusCapacity = new TerraformVariable(this, 'zilla_plus_capacity', {
-      type: 'number',
-      default: 2,
-      description: 'The initial number of Zilla Plus instances'
-    });
+    const CREATE_ZILLA_PLUS_ROLE = process.env.CREATE_ZILLA_PLUS_ROLE !== "false";
 
-    const zillaPlusRole = new TerraformVariable(this, 'zilla_plus_role', {
-      type: 'string',
-      description: 'The role name assumed by Zilla Plus instances.',
-    });
+    let zillaPlusRole;
+    if (!CREATE_ZILLA_PLUS_ROLE)
+    {
+      const zillaPlusRoleVar = new TerraformVariable(this, 'zilla_plus_role_name', {
+        type: 'string',
+        description: 'The role name assumed by Zilla Plus instances.',
+      });
 
-    const zillaPlusSecurityGroups = new TerraformVariable(this, 'zilla_plus_security_groups', {
-      type: 'list(string)',
-      description: 'The security groups associated with Zilla Plus instances.',
-    });
+      zillaPlusRole = zillaPlusRoleVar.stringValue;
+    }
+    else
+    {
+      const iamRole = new IamRole(this, 'zilla_plus_role', {
+        name: 'zilla_plus_role',
+        assumeRolePolicy: JSON.stringify({
+          "Version": "2012-10-17",
+          "Statement": [
+              {
+                  "Effect": "Allow",
+                  "Principal": {
+                      "Service": "ec2.amazonaws.com"
+                  },
+                  "Action": "sts:AssumeRole"
+              },
+              {
+                  "Effect": "Allow",
+                  "Principal": {
+                      "Service": "cloudformation.amazonaws.com"
+                  },
+                  "Action": "sts:AssumeRole"
+              }
+          ]
+      }),
+        managedPolicyArns: ['arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore', 'arn:aws:iam::aws:policy/AWSCertificateManagerReadOnly',
+                            'arn:aws:iam::aws:policy/AWSGlueSchemaRegistryReadonlyAccess', 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'],
+        inlinePolicy: [
+          {
+            name: 'CCProxySecretsManagerRead',
+            policy: JSON.stringify({
+              "Version": "2012-10-17",
+              "Statement": [
+                  {
+                      "Sid": "VisualEditor0",
+                      "Effect": "Allow",
+                      "Action": [
+                          "acm-pca:GetCertificate",
+                          "acm-pca:GetCertificateAuthorityCertificate",
+                          "acm-pca:DescribeCertificateAuthority",
+                          "tag:GetResources",
+                          "secretsmanager:GetSecretValue",
+                          "secretsmanager:DescribeSecret"
+                      ],
+                      "Resource": [
+                          "arn:aws:secretsmanager:*:*:secret:wildcard.example.aklivity.io*",
+                          "arn:aws:secretsmanager:*:*:secret:client-*",
+                          "*"
+                      ]
+                  }
+              ]
+          })
+          }
+        ]
+      });
+
+      const iamInstanceProfile = new IamInstanceProfile(this, 'zilla_plus_instance_profile', {
+        name: 'zilla_plus_role',
+        role: iamRole.name
+      });
+  
+      new IamRolePolicy(this, 'ZillaPlusRolePolicy', {
+        role: iamRole.name,
+        policy: JSON.stringify({
+          Version: '2012-10-17',
+          Statement: [
+            {
+              Sid: 'VisualEditor0',
+              Effect: 'Allow',
+              Action: [
+                'secretsmanager:GetSecretValue',
+                'secretsmanager:DescribeSecret',
+              ],
+              Resource: [
+                'arn:aws:secretsmanager:*:*:secret:*',
+              ],
+            },
+          ],
+        }),
+      });
+
+      zillaPlusRole = iamInstanceProfile.name;
+    }
 
     const publicTcpPort = new TerraformVariable(this, 'public_tcp_port', {
       type: 'number',
       default: 8883,
       description: 'The public port number to be used by MQTT clients',
+    });
+
+    const CREATE_ZILLA_PLUS_SECURITY_GROUP = process.env.CREATE_ZILLA_PLUS_SECURITY_GROUP !== "false";
+    let zillaPlusSecurityGroups;
+
+    if (!CREATE_ZILLA_PLUS_SECURITY_GROUP)
+    {
+      const zillaPlusSecurityGroupsVar = new TerraformVariable(this, 'zilla_plus_security_groups', {
+        type: 'list(string)',
+        description: 'The security groups associated with Zilla Plus instances.',
+      });
+      zillaPlusSecurityGroups = zillaPlusSecurityGroupsVar.listValue;
+    }
+    else
+    {
+      const zillaPlusSG = new SecurityGroup(this, 'ZillaPlusSecurityGroup', {
+        vpcId: vpc.id,
+        description: 'Security group for Zilla Plus',
+        ingress: [
+          {
+            fromPort: publicTcpPort.value,
+            toPort: publicTcpPort.value,
+            protocol: 'tcp',
+            cidrBlocks: ['0.0.0.0/0']
+          }
+        ],
+        egress: [
+          {
+            fromPort: 0,
+            toPort: 65535,
+            protocol: 'tcp',
+            cidrBlocks: ['0.0.0.0/0']
+          }
+        ],
+        tags: {
+          Name: 'zilla-plus-security-group'
+        }
+      });
+      zillaPlusSecurityGroups = [zillaPlusSG.id];
+    }
+
+
+    const zillaPlusCapacity = new TerraformVariable(this, 'zilla_plus_capacity', {
+      type: 'number',
+      default: 2,
+      description: 'The initial number of Zilla Plus instances'
     });
 
     const publicTlsCertificateKey = new TerraformVariable(this, 'public_tls_certificate_key', {
@@ -101,14 +314,14 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
 
     if (SSH_KEY_ENABLED)
     {
-      const keyNameVar = new TerraformVariable(this, 'key_name', {
+      const keyNameVar = new TerraformVariable(this, 'zilla_plus_ssh_key', {
         type: 'string',
         description: 'Name of an existing EC2 KeyPair to enable SSH access to the instances'
       });
       keyName = keyNameVar.stringValue;
     }
 
-    const instanceType = new TerraformVariable(this, 'instance_type', {
+    const instanceType = new TerraformVariable(this, 'zilla_plus_instance_type', {
       type: 'string',
       default: 't3.small',
       description: 'MSK Proxy EC2 instance type'
@@ -118,13 +331,12 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       errorMessage: 'must be a valid EC2 instance type.'
     })
 
-    const CLOUDWATCH_ENABLED = process.env.CLOUDWATCH_ENABLED === "true";
-
+    const CLOUDWATCH_DISABLED = process.env.CLOUDWATCH_DISABLED === "true";
 
     let zillaTelemetryContent = "";
     let bindingTelemetryContent = ""; 
 
-    if (CLOUDWATCH_ENABLED)
+    if (!CLOUDWATCH_DISABLED)
     {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
@@ -141,15 +353,8 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
         default: defaultMetricNamespace
       });
 
-      const existingLogGroup = new DataAwsCloudwatchLogGroup(this, 'existingLogGroup', {
-        name: cloudWatchLogsGroup.stringValue
-      });
-
-      new CloudwatchLogGroup(this, `loggroup`, {
+      new CloudwatchLogGroup(this, 'loggroup', {
         name: cloudWatchLogsGroup.stringValue,
-        dependsOn: [existingLogGroup],
-        skipDestroy: true,
-        count: existingLogGroup.arn ? 0 : 1
       });
       
       const logsSection = `
@@ -204,14 +409,12 @@ ${metricsSection}`;
       ],
     });
 
-    const region = awsProvider.region ?? "us-east-1";
-
     const nlb = new Lb(this, 'NetworkLoadBalancer', {
       name: 'network-load-balancer',
       loadBalancerType: 'network',
       internal: false,
-      subnets: subnetIds.listValue,
-      securityGroups: zillaPlusSecurityGroups.listValue,
+      subnets: subnetIds,
+      securityGroups: zillaPlusSecurityGroups,
       enableCrossZoneLoadBalancing: true,
     });
 
@@ -219,7 +422,7 @@ ${metricsSection}`;
       name: 'nlb-target-group',
       port: publicTcpPort.value,
       protocol: 'TCP',
-      vpcId: vpcId.value,
+      vpcId: vpc.id,
     });
 
     new LbListener(this, 'NLBListener', {
@@ -234,13 +437,13 @@ ${metricsSection}`;
 
     const kafkaSaslUsername = Fn.join('', [
       '${{aws.secrets.',
-      mskAccessCredentialsARN.stringValue,
+      mskAccessCredentialsName.stringValue,
       '#username}}'
     ]);
 
     const kafkaSaslPassword = Fn.join('', [
       '${{aws.secrets.',
-      mskAccessCredentialsARN.stringValue,
+      mskAccessCredentialsName.stringValue,
       '#password}}'
     ]);
 
@@ -377,18 +580,18 @@ systemctl start zilla-plus
         {
           associatePublicIpAddress: 'true',
           deviceIndex: 0,
-          securityGroups: zillaPlusSecurityGroups.listValue
+          securityGroups: zillaPlusSecurityGroups
         },
       ],
       iamInstanceProfile: {
-        name: zillaPlusRole.stringValue
+        name: zillaPlusRole
       },
       keyName: keyName,
       userData: Fn.base64encode(userData)
     });
 
     new autoscalingGroup.AutoscalingGroup(this, 'zillaPlusGroup', {
-      vpcZoneIdentifier: subnetIds.listValue,
+      vpcZoneIdentifier: subnetIds,
       launchTemplate: {
         id: MSKProxyLaunchTemplate.id
       },
@@ -396,6 +599,99 @@ systemctl start zilla-plus
       maxSize: 5,
       desiredCapacity: zillaPlusCapacity.numberValue,
       targetGroupArns: [nlbTargetGroup.arn]
+    });
+
+    const asset = new TerraformAsset(this, "lambda-asset", {
+      path: path.resolve(__dirname, "lambda/dist"),
+      type: AssetType.ARCHIVE,
+    });
+
+    //Create the kafka topics
+    // S3 Bucket for Lambda function code
+    const bucket = new S3Bucket(this, 'LambdaBucket', {
+      bucket: `${id}-bucket`,
+    });
+
+    const lambdaArchive = new S3Object(this, "lambdaArchive", {
+      bucket: bucket.bucket,
+      key: asset.fileName,
+      source: asset.path,
+    });
+
+    const lambdaRole = new IamRole(this, 'LambdaRole', {
+      name: 'lambda-role',
+      assumeRolePolicy: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Principal: {
+              Service: 'lambda.amazonaws.com',
+            },
+            Action: 'sts:AssumeRole',
+          },
+        ],
+      }),
+    });
+
+    new IamRolePolicy(this, 'LambdaPolicy', {
+      role: lambdaRole.name,
+      policy: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Effect: 'Allow',
+            Action: [
+              'logs:CreateLogGroup',
+              'logs:CreateLogStream',
+              'logs:PutLogEvents',
+            ],
+            Resource: '*',
+          },
+        ],
+      }),
+    });
+
+    // Lambda function
+    const lambdaFunction = new LambdaFunction(this, 'KafkaHandler', {
+      functionName: 'kafkaHandler',
+      handler: 'index.handler',
+      runtime: 'nodejs20.x',
+      role: lambdaRole.arn,
+      s3Bucket: bucket.bucket,
+      s3Key: lambdaArchive.key,
+      dependsOn: [bucket],
+    });
+
+    // Lambda Invocation to create topics
+    new LambdaInvocation(this, 'InvokeKafkaHandler', {
+      functionName: lambdaFunction.functionName,
+      input: JSON.stringify({
+        bootstrapServers: [kafkaBootstrapServers],
+        topics: [
+          {
+            name: kafkaTopicMqttSessions.stringValue,
+            numPartitions: 3,
+            replicationFactor: 2,
+            config: {
+              'cleanup.policy': 'compact',
+            },
+          },
+          {
+            name: kafkaTopicMqttRetained.stringValue,
+            numPartitions: 3,
+            replicationFactor: 2,
+            config: {
+              'cleanup.policy': 'compact',
+            },
+          },
+          {
+            name: kafkaTopicMqttMessages.stringValue,
+            numPartitions: 3,
+            replicationFactor: 2,
+          },
+        ],
+      }),
     });
 
     new TerraformOutput(this, 'NetworkLoadBalancerOutput', {

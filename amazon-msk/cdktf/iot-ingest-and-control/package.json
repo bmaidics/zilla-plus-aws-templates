@@ -21,8 +21,10 @@
   },
   "dependencies": {
     "@cdktf/provider-aws": "^19.26.0",
+    "aws-sdk": "^2.1668.0",
     "cdktf": "^0.20.8",
-    "constructs": "^10.3.0"
+    "constructs": "^10.3.0",
+    "kafkajs": "^2.2.4"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
