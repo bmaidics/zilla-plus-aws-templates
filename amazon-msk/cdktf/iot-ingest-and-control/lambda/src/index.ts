@@ -1,4 +1,4 @@
-import { Kafka } from 'kafkajs';
+import { Kafka, logLevel } from 'kafkajs';
 import { SecretsManager } from 'aws-sdk';
 import { Handler } from 'aws-lambda';
 
@@ -17,6 +17,8 @@ const fetchSecrets = async (secretName: string): Promise<any> => {
 export const handler: Handler = async (event, context) => {
   const { bootstrapServers, topics, secretName } = event;
 
+  console.log('SecretName: ', secretName);
+
   let kafkaSaslCredentials;
   try {
     kafkaSaslCredentials = await fetchSecrets(secretName);
@@ -28,15 +30,20 @@ export const handler: Handler = async (event, context) => {
     };
   }
 
+  console.log('Servers: ', bootstrapServers);
+  console.log('Username: ', kafkaSaslCredentials.username);
+  console.log('Password: ', kafkaSaslCredentials.password);
+
   const kafka = new Kafka({
     clientId: 'kafka-topic-creator',
     brokers: bootstrapServers,
     sasl: {
-      mechanism: kafkaSaslCredentials.mechanism || 'scram-sha-512',
+      mechanism: 'scram-sha-512',
       username: kafkaSaslCredentials.username,
       password: kafkaSaslCredentials.password,
     },
     ssl: true,
+    logLevel: logLevel.DEBUG
   });
 
   const admin = kafka.admin();

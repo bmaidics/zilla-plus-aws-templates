@@ -1,5 +1,5 @@
 import { Construct } from "constructs";
-import { App, TerraformStack, TerraformOutput, TerraformVariable, Fn, Op, TerraformAsset, AssetType} from "cdktf";
+import { App, TerraformStack, TerraformOutput, TerraformVariable, Fn, Op} from "cdktf";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
@@ -25,11 +25,8 @@ import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile
 import { IamRole } from "@cdktf/provider-aws/lib/iam-role";
 import { IamRolePolicy } from "@cdktf/provider-aws/lib/iam-role-policy";
 import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
-import { S3Bucket } from "@cdktf/provider-aws/lib/s3-bucket";
-import * as path from 'path';
-import { S3Object } from "@cdktf/provider-aws/lib/s3-object";
-import { LambdaFunction } from "@cdktf/provider-aws/lib/lambda-function";
-import { LambdaInvocation } from "@cdktf/provider-aws/lib/lambda-invocation";
+import { topic } from "./.gen/providers/kafka";
+import { KafkaProvider } from "./.gen/providers/kafka/provider";
 
 export class ZillaPlusIotAndControlStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
@@ -53,10 +50,10 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
 
     const mskAccessCredentialsName = new TerraformVariable(this, 'msk_access_credentials_name', {
       type: 'string',
-      description: 'The MSK Access Credentials Secret ARN with JSON properties; username, password'
+      description: 'The MSK Access Credentials Secret Name with JSON properties; username, password'
     });
     // Validate that the Credentials exists
-    new DataAwsSecretsmanagerSecretVersion(this, 'mskAccessCredentials', {
+    const secret = new DataAwsSecretsmanagerSecretVersion(this, 'mskAccessCredentials', {
       secretId: mskAccessCredentialsName.stringValue,
     });
 
@@ -152,6 +149,34 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       type: 'string',
       description: 'The Kafka topic storing MQTT retained, cleanup policy "compact"',
       default: 'mqtt-retained'
+    });
+
+    const secretValue = Fn.jsondecode(secret.secretString);
+    const username = Fn.lookup(secretValue, "username");
+    const password = Fn.lookup(secretValue, "password");
+
+    const bootstrapBrokers = [Fn.element(Fn.split(',', mskCluster.bootstrapBrokersSaslScram), 0)];
+
+    new TerraformOutput(this, 'brokers', {
+      value: bootstrapBrokers
+    });
+
+   const kafkaProvider = new KafkaProvider(this, 'mskKafkaCluster', {
+      bootstrapServers: bootstrapBrokers,
+      saslUsername: username,
+      saslPassword: password,
+      tlsEnabled: true,
+      saslAwsCredsDebug: true
+    })
+
+    new topic.Topic(this, 'my_kafka_topic', {
+      name: 'testTopic',
+      replicationFactor: 2,
+      partitions: 3,
+      config: {
+        'cleanup.policy': 'compact'
+      },
+      provider: kafkaProvider
     });
 
     const CREATE_ZILLA_PLUS_ROLE = process.env.CREATE_ZILLA_PLUS_ROLE !== "false";
@@ -599,99 +624,6 @@ systemctl start zilla-plus
       maxSize: 5,
       desiredCapacity: zillaPlusCapacity.numberValue,
       targetGroupArns: [nlbTargetGroup.arn]
-    });
-
-    const asset = new TerraformAsset(this, "lambda-asset", {
-      path: path.resolve(__dirname, "lambda/dist"),
-      type: AssetType.ARCHIVE,
-    });
-
-    //Create the kafka topics
-    // S3 Bucket for Lambda function code
-    const bucket = new S3Bucket(this, 'LambdaBucket', {
-      bucket: `${id}-bucket`,
-    });
-
-    const lambdaArchive = new S3Object(this, "lambdaArchive", {
-      bucket: bucket.bucket,
-      key: asset.fileName,
-      source: asset.path,
-    });
-
-    const lambdaRole = new IamRole(this, 'LambdaRole', {
-      name: 'lambda-role',
-      assumeRolePolicy: JSON.stringify({
-        Version: '2012-10-17',
-        Statement: [
-          {
-            Effect: 'Allow',
-            Principal: {
-              Service: 'lambda.amazonaws.com',
-            },
-            Action: 'sts:AssumeRole',
-          },
-        ],
-      }),
-    });
-
-    new IamRolePolicy(this, 'LambdaPolicy', {
-      role: lambdaRole.name,
-      policy: JSON.stringify({
-        Version: '2012-10-17',
-        Statement: [
-          {
-            Effect: 'Allow',
-            Action: [
-              'logs:CreateLogGroup',
-              'logs:CreateLogStream',
-              'logs:PutLogEvents',
-            ],
-            Resource: '*',
-          },
-        ],
-      }),
-    });
-
-    // Lambda function
-    const lambdaFunction = new LambdaFunction(this, 'KafkaHandler', {
-      functionName: 'kafkaHandler',
-      handler: 'index.handler',
-      runtime: 'nodejs20.x',
-      role: lambdaRole.arn,
-      s3Bucket: bucket.bucket,
-      s3Key: lambdaArchive.key,
-      dependsOn: [bucket],
-    });
-
-    // Lambda Invocation to create topics
-    new LambdaInvocation(this, 'InvokeKafkaHandler', {
-      functionName: lambdaFunction.functionName,
-      input: JSON.stringify({
-        bootstrapServers: [kafkaBootstrapServers],
-        topics: [
-          {
-            name: kafkaTopicMqttSessions.stringValue,
-            numPartitions: 3,
-            replicationFactor: 2,
-            config: {
-              'cleanup.policy': 'compact',
-            },
-          },
-          {
-            name: kafkaTopicMqttRetained.stringValue,
-            numPartitions: 3,
-            replicationFactor: 2,
-            config: {
-              'cleanup.policy': 'compact',
-            },
-          },
-          {
-            name: kafkaTopicMqttMessages.stringValue,
-            numPartitions: 3,
-            replicationFactor: 2,
-          },
-        ],
-      }),
     });
 
     new TerraformOutput(this, 'NetworkLoadBalancerOutput', {

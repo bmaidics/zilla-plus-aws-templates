@@ -3,7 +3,9 @@
   "app": "npx ts-node main.ts",
   "projectId": "b9c89348-50ab-4722-b095-2ed3f3185534",
   "sendCrashReports": "false",
-  "terraformProviders": [],
+  "terraformProviders": [
+    "Mongey/kafka@~> 0.7.1"
+  ],
   "terraformModules": [],
   "context": {
 
