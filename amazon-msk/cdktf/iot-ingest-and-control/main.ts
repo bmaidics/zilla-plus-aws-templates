@@ -406,6 +406,7 @@ ${metricsSection}`;
           values: ['true']
         }
       ],
+      owners: ['679593333241']
     });
 
     const nlb = new Lb(this, 'NetworkLoadBalancer', {
