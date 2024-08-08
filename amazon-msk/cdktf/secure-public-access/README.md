@@ -178,7 +178,7 @@ This command will generate the necessary Terraform JSON configuration files in t
 After synthesizing the configuration, navigate to the folder where the Terraform JSON output is located:
 
 ```bash
-cd cdktf.out/stacks/secure-public-access-mtls
+cd cdktf.out/stacks/secure-public-access
 ```
 
 Speicfy the necessary variables based on your setup.

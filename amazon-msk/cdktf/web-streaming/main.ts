@@ -10,9 +10,9 @@ import { DataAwsSecretsmanagerSecretVersion } from "@cdktf/provider-aws/lib/data
 import { CloudwatchLogGroup } from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 import { DataAwsMskCluster } from "@cdktf/provider-aws/lib/data-aws-msk-cluster";
 import instanceTypes from "./instance-types";
-import { DataAwsRegion } from "@cdktf/provider-aws/lib/data-aws-region";
 import { DataAwsAvailabilityZones } from "@cdktf/provider-aws/lib/data-aws-availability-zones";
 import { DataAwsMskBrokerNodes } from "@cdktf/provider-aws/lib/data-aws-msk-broker-nodes";
+import { DataAwsRegion } from "@cdktf/provider-aws/lib/data-aws-region";
 import { DataAwsSubnet } from "@cdktf/provider-aws/lib/data-aws-subnet";
 import { DataAwsSubnets } from "@cdktf/provider-aws/lib/data-aws-subnets";
 import { DataAwsVpc } from "@cdktf/provider-aws/lib/data-aws-vpc";
@@ -26,7 +26,7 @@ import { IamRole } from "@cdktf/provider-aws/lib/iam-role";
 import { IamRolePolicy } from "@cdktf/provider-aws/lib/iam-role-policy";
 import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
 
-export class ZillaPlusIotAndControlStack extends TerraformStack {
+export class ZillaPlusWebStreamingStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
 
@@ -130,24 +130,23 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       });
     }
 
-
-    const kafkaTopicMqttSessions = new TerraformVariable(this, 'kafka_topic_mqtt_sessions', {
+    const topic = new TerraformVariable(this, 'kafka_topic', {
       type: 'string',
-      description: 'The Kafka topic storing MQTT sessions, cleanup policy "compact"',
-      default: 'mqtt-sessions'
+      description: 'The Kafka topic exposed through REST and SSE',
     });
 
-    const kafkaTopicMqttMessages = new TerraformVariable(this, 'kafka_topic_mqtt_messages', {
-      type: 'string',
-      description: 'The Kafka topic storing MQTT messages, cleanup policy "delete"',
-      default: 'mqtt-messages'
-    });
+    let path = `/${topic.stringValue}`;
+    const CUSTOM_PATH = process.env.CUSTOM_PATH === "true";
 
-    const kafkaTopicMqttRetained = new TerraformVariable(this, 'kafka_topic_mqtt_retained', {
-      type: 'string',
-      description: 'The Kafka topic storing MQTT retained, cleanup policy "compact"',
-      default: 'mqtt-retained'
-    });
+    if (CUSTOM_PATH)
+    {
+      const pathVar = new TerraformVariable(this, 'path', {
+        type: 'string',
+        description: 'The path the Kafka topic should be exposed to',
+        default: ''
+      });
+      path = `/${pathVar.stringValue}`;
+    }
 
     const secretValue = Fn.jsondecode(secret.secretString);
     const username = Fn.lookup(secretValue, "username");
@@ -210,7 +209,7 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
                           "secretsmanager:DescribeSecret"
                       ],
                       "Resource": [
-                          "*"
+                        "*"
                       ]
                   }
               ]
@@ -247,10 +246,17 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       zillaPlusRole = iamInstanceProfile.name;
     }
 
+
+    const zillaPlusCapacity = new TerraformVariable(this, 'zilla_plus_capacity', {
+      type: 'number',
+      default: 2,
+      description: 'The initial number of Zilla Plus instances'
+    });
+
     const publicTcpPort = new TerraformVariable(this, 'public_tcp_port', {
       type: 'number',
-      default: 8883,
-      description: 'The public port number to be used by MQTT clients',
+      default: 7143,
+      description: 'The public port number to be used by REST and SSE clients',
     });
 
     const CREATE_ZILLA_PLUS_SECURITY_GROUP = process.env.CREATE_ZILLA_PLUS_SECURITY_GROUP !== "false";
@@ -292,13 +298,6 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       zillaPlusSecurityGroups = [zillaPlusSG.id];
     }
 
-
-    const zillaPlusCapacity = new TerraformVariable(this, 'zilla_plus_capacity', {
-      type: 'number',
-      default: 2,
-      description: 'The initial number of Zilla Plus instances'
-    });
-
     const publicTlsCertificateKey = new TerraformVariable(this, 'public_tls_certificate_key', {
       type: 'string',
       description: 'TLS Certificate Private Key Secret ARN'
@@ -313,14 +312,14 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
 
     if (SSH_KEY_ENABLED)
     {
-      const keyNameVar = new TerraformVariable(this, 'zilla_plus_ssh_key', {
+      const keyNameVar = new TerraformVariable(this, 'key_name', {
         type: 'string',
         description: 'Name of an existing EC2 KeyPair to enable SSH access to the instances'
       });
       keyName = keyNameVar.stringValue;
     }
 
-    const instanceType = new TerraformVariable(this, 'zilla_plus_instance_type', {
+    const instanceType = new TerraformVariable(this, 'instance_type', {
       type: 'string',
       default: 't3.small',
       description: 'MSK Proxy EC2 instance type'
@@ -366,8 +365,8 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
         metrics:
           namespace: ${cloudWatchMetricsNamespace.stringValue}`;
 
-      zillaTelemetryContent = `
-telemetry:
+      zillaTelemetryContent = 
+`telemetry:
   metrics:
     - stream.active.received
     - stream.active.sent
@@ -388,10 +387,54 @@ telemetry:
 ${logsSection}
 ${metricsSection}`;
 
-    bindingTelemetryContent = `
-    telemetry:
+    bindingTelemetryContent = 
+`    telemetry:
       metrics:
         - stream.*`;
+    }
+
+
+    const GLUE_REGISTRY_ENABLED = process.env.GLUE_REGISTRY_ENABLED === "true";
+    let glueContent = '';
+    let kafkaCacheClientGlueContent = '';
+    let kafkaCacheServerGlueContent = '';
+
+    if (GLUE_REGISTRY_ENABLED)
+    {
+      const glueRegistry = new TerraformVariable(this, 'glue_registry', {
+        type: 'string',
+        description: 'The Glue Registry to fetch the schemas from'
+      });
+
+      glueContent = 
+`catalogs:
+  glue_catalog:
+    type: aws-glue
+    options:
+      registry: ${glueRegistry.stringValue}`
+
+      kafkaCacheClientGlueContent = 
+`    options:
+      topics:
+        - name: ${topic}
+          value:
+            model: avro
+            view: json
+            catalog:
+              glue_catalog:
+                - strategy: topic
+                  version: latest`
+      
+      kafkaCacheServerGlueContent = 
+`      topics:
+        - name: ${topic}
+          value:
+            model: avro
+            view: json
+            catalog:
+              glue_catalog:
+                - strategy: topic
+                  version: latest`
     }
 
     const ami = new dataAwsAmi.DataAwsAmi(this, 'LatestAmi', {
@@ -408,6 +451,7 @@ ${metricsSection}`;
       ],
       owners: ['679593333241']
     });
+
 
     const nlb = new Lb(this, 'NetworkLoadBalancer', {
       name: 'network-load-balancer',
@@ -451,6 +495,7 @@ ${metricsSection}`;
 
     const zillaYamlContent = `
 name: public
+${glueContent}
 ${zillaTelemetryContent}
 vaults:
   secure:
@@ -472,25 +517,88 @@ ${bindingTelemetryContent}
     options:
       keys:
       - ${publicTlsCertificateKey.stringValue}
-    exit: mqtt_server
-  mqtt_server:
-    type: mqtt
+    exit: north_http_server
+  north_http_server:
+    type: http
     kind: server
 ${bindingTelemetryContent}
-    exit: mqtt_kafka_mapping
-  mqtt_kafka_mapping:
-    type: mqtt-kafka
+    routes:
+      - when:
+          - headers:
+              :path: /streams${path}
+        exit: north_sse_server
+      - when:
+          - headers:
+              :path: ${path}/*
+          - headers:
+              :path: ${path}
+        exit: north_http_kafka_mapping
+  north_sse_server:
+    type: sse
+    kind: server
+${bindingTelemetryContent}
+    exit: north_sse_kafka_mapping
+  north_sse_kafka_mapping:
+    type: sse-kafka
     kind: proxy
 ${bindingTelemetryContent}
-    options:
-      topics:
-        sessions: ${kafkaTopicMqttSessions}
-        messages: ${kafkaTopicMqttMessages}
-        retained: ${kafkaTopicMqttRetained}
-    exit: kafka_cache_client
+    routes:
+      - when:
+          - path: /streams${path}
+        exit: kafka_cache_client
+        with:
+          topic: ${topic}
+  north_http_kafka_mapping:
+    type: http-kafka
+    kind: proxy
+${bindingTelemetryContent}
+    routes:
+      - when:
+          - method: POST
+            path: ${path}
+        exit: kafka_cache_client
+        with:
+          capability: produce
+          topic: ${topic.stringValue}
+          key: \${idempotencyKey}
+      - when:
+          - method: PUT
+            path: ${path}/{id}
+        exit: kafka_cache_client
+        with:
+          capability: produce
+          topic: ${topic.stringValue}
+          key: \${params.id}
+      - when:
+          - method: DELETE
+            path: ${path}/{id}
+        exit: kafka_cache_client
+        with:
+          capability: produce
+          topic: ${topic.stringValue}
+          key: \${params.id}
+      - when:
+          - method: GET
+            path: ${path}
+        exit: kafka_cache_client
+        with:
+          capability: fetch
+          topic: ${topic.stringValue}
+          merge:
+            content-type: application/json
+      - when:
+          - method: GET
+            path: ${path}/{id}
+        exit: kafka_cache_client
+        with:
+          capability: fetch
+          topic: ${topic.stringValue}
+          filters:
+            - key: \${params.id}
   kafka_cache_client:
     type: kafka
     kind: cache_client
+${kafkaCacheClientGlueContent}
 ${bindingTelemetryContent}
     exit: kafka_cache_server
   kafka_cache_server:
@@ -499,8 +607,8 @@ ${bindingTelemetryContent}
 ${bindingTelemetryContent}
     options:
       bootstrap:
-        - ${kafkaTopicMqttMessages}
-        - ${kafkaTopicMqttRetained}
+        - ${topic.stringValue}
+${kafkaCacheServerGlueContent}
     exit: kafka_client
   kafka_client:
     type: kafka
@@ -535,17 +643,16 @@ region=${region}
     const cfnAutoReloaderConfContent = `
 [cfn-auto-reloader-hook]
 triggers=post.update
-path=Resources.MSKProxyLaunchTemplate.Metadata.AWS::CloudFormation::Init
+path=Resources.ZillaPlusLaunchTemplate.Metadata.AWS::CloudFormation::Init
 action=/opt/aws/bin/cfn-init -v --stack ${id} --resource ZillaPlusLaunchTemplate --region ${region}
 runas=root
     `;
 
-
-    const MQTT_KAFKA_TOPIC_CREATION_DISABLED = process.env.MQTT_KAFKA_TOPIC_CREATION_DISABLED === "true";
+    const KAFKA_TOPIC_CREATION_DISABLED = process.env.KAFKA_TOPIC_CREATION_DISABLED === "true";
 
     let kafkaTopicCreationCommand = '';
 
-    if (!MQTT_KAFKA_TOPIC_CREATION_DISABLED)
+    if (!KAFKA_TOPIC_CREATION_DISABLED)
     {
       kafkaTopicCreationCommand = `
 wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz
@@ -558,10 +665,8 @@ sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule require
 security.protocol=SASL_SSL
 sasl.mechanism=SCRAM-SHA-512
 END_HELP
-./kafka-topics.sh --create --bootstrap-server ${bootstrapBrokers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttSessions} --config 'cleanup.policy=compact'
-./kafka-topics.sh --create --bootstrap-server ${bootstrapBrokers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttRetained} --config 'cleanup.policy=compact'
-./kafka-topics.sh --create --bootstrap-server ${bootstrapBrokers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttMessages}
-      `
+./kafka-topics.sh --create --bootstrap-server ${bootstrapBrokers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${topic.stringValue} --config 'cleanup.policy=compact'
+  `
     }
     
     const userData = `#!/bin/bash -xe
@@ -599,7 +704,7 @@ ${kafkaTopicCreationCommand}
 
     `;
         
-    const MSKProxyLaunchTemplate = new launchTemplate.LaunchTemplate(this, 'ZillaPlusLaunchTemplate', {
+    const ZillaPlusLaunchTemplate = new launchTemplate.LaunchTemplate(this, 'ZillaPlusLaunchTemplate', {
       imageId: ami.imageId,
       instanceType: instanceType.stringValue,
       networkInterfaces: [
@@ -619,7 +724,7 @@ ${kafkaTopicCreationCommand}
     new autoscalingGroup.AutoscalingGroup(this, 'zillaPlusGroup', {
       vpcZoneIdentifier: subnetIds,
       launchTemplate: {
-        id: MSKProxyLaunchTemplate.id
+        id: ZillaPlusLaunchTemplate.id
       },
       minSize: 1,
       maxSize: 5,
@@ -635,5 +740,5 @@ ${kafkaTopicCreationCommand}
 }
 
 const app = new App();
-new ZillaPlusIotAndControlStack(app, "iot-ingest-and-control");
+new ZillaPlusWebStreamingStack(app, "web-streaming");
 app.synth();

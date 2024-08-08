@@ -1,6 +1,6 @@
 # CDKTF Project Setup Guide
 
-This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus IOT Ingest and Control using CDKTF.
+This guide will help you gather the necessary AWS values required to configure and deploy Zilla Plus REST and SSE using CDKTF.
 
 ## Prerequisites
 
@@ -8,12 +8,15 @@ This guide will help you gather the necessary AWS values required to configure a
 2. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
 3. Set your aws region: `aws configure set region us-east-1` 
 4. Verify your region and credentials: `aws configure list`
+
+```bash
       Name                    Value             Type    Location
       ----                    -----             ----    --------
    profile                <not set>             None    None
-access_key     ****************XXXX              env    
-secret_key     ****************XXXX              env    
-    region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
+access_key     ****************XXXX              env
+secret_key     ****************XXXX              env
+    region                us-east-1      config-file    ~/.aws/config
+```
 5. Ensure you have `Node.js` installed `npm --version`.
 6. Ensure you have `Homebrew` installed. `brew --version`
 7. Install Terraform using Homebrew
@@ -29,6 +32,7 @@ brew install hashicorp/tap/terraform
 If you don't have an existing MSK cluster you can use our example MSK deployment with basic configuration and SASL/SCRAM authentication setup. 
 Use `cdktf deploy` inside the `example-cluster` folder to deploy the example MSK cluster.
 Note the `mskClusterName` from the outputs as you'll need this later.
+
 
 ## Variables
 
@@ -71,7 +75,8 @@ aws ec2 describe-security-groups --query 'SecurityGroups[*].[GroupId, GroupName]
 ```
 Note down the security group IDs (GroupId) of the desired security groups.
 
-### 6. Zilla Plus Capacity (`zilla_plus_capacity`)
+
+### 8. Zilla Plus Capacity (`zillaPlusCapacity`)
 
 This variable defines the initial number of Zilla Plus instances.
 
@@ -79,36 +84,25 @@ This variable defines the initial number of Zilla Plus instances.
 
 - Default: `2`
 
-### 7. Public TCP Port (`public_tcp_port`)
-This variable defines the public port number to be used by Kafka clients.
+### 9. Public TCP Port (`publicTcpPort`)
+This variable defines the public port number to be used by REST and SSE clients.
 
 Default Value
-- Default: `8883`
+- Default: `7143`
 
-## Kafka topics
-By default, the deployment creates the provided Kafka topics required by Zilla Plus. To disable this set the environment variable `MQTT_KAFKA_TOPIC_CREATION_DISABLED` to `true`.
-### 8. Kafka Topic for MQTT Sessions (kafka_topic_mqtt_sessions)
-
-This variable defines the Kafka topic storing MQTT sessions with a cleanup policy set to "compact".
-
-Default Value
-- Default: `mqtt-sessions`
-
-### 9. Kafka Topic for MQTT Messages (`kafka_topic_mqtt_messages`)
-This variable defines the Kafka topic storing MQTT messages with a cleanup policy set to "delete".
-
-Default Value
-- Default: `mqtt-messages`
-
-### 10. Kafka Topic for MQTT Retained Messages (kafka_topic_mqtt_retained)
-This variable defines the Kafka topic storing MQTT retained messages with a cleanup policy set to "compact".
-
-Default Value
-- Default: `mqtt-retained`
+### 10. Kafka Topic (`kafkaTopic`)
+This variable defines the Kafka topic exposed through REST and SSE.
 
 ## Optional Features
 
-### SSH Key Access (key_name)
+### CUSTOM_PATH
+To enable a custom path for the Kafka topic, set the environment variable CUSTOM_PATH to true. If enabled, you will need to provide the path where the Kafka topic should be exposed.
+
+#### Steps to Configure
+1. Set CUSTOM_PATH=true to enable custom path support.
+2. Provide the path for the Kafka topic.
+
+### SSH Key Access
 
 To enable SSH access to the instances, set the environment variable `SSH_KEY_ENABLED` to `true`. You will also need the name of an existing EC2 KeyPair.
 
@@ -125,7 +119,7 @@ You can create or use existing log groups and metric namespaces in CloudWatch.
 
 By default, the deployment creates a CloudWatch Log Groups and Custom Metrics Namespace.
 If you want to define your own, follow these steps.
-#### List All CloudWatch Log Groups (cloudwatch_logs_group)
+#### List All CloudWatch Log Groups (`cloudwatch_logs_group`)
 
 ```bash
 aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output table
@@ -133,13 +127,22 @@ aws logs describe-log-groups --query 'logGroups[*].[logGroupName]' --output tabl
 This command will return a table listing the names of all the log groups in your CloudWatch.
 In your `terraform.tfvars` file add the desired CloudWatch Logs Group for variable name `cloudwatch_logs_group`
 
-#### List All CloudWatch Custom Metric Namespaces (cloudwatch_metrics_namespace)
+#### List All CloudWatch Custom Metric Namespaces (`cloudwatch_metrics_namespace`)
 
 ```bash
 aws cloudwatch list-metrics --query 'Metrics[*].Namespace' --output text | tr '\t' '\n' | sort | uniq | grep -v '^AWS'
 ```
 In your `terraform.tfvars` file add the desired CloudWatch Metrics Namespace for variable name `cloudwatch_metrics_namespace`
 
+### Glue Schema Registry
+
+To enable the Glue Schema Registry for schema fetching, set the environment variable `GLUE_REGISTRY_ENABLED` to `true`. You will also need the name of the Glue Registry.
+
+1. List all Glue Registries:
+```bash
+aws glue list-registries --query 'Registries[*].[RegistryName]' --output table
+```
+Note down the Glue Registry name (RegistryName) you want to use.
 
 ## Deploy stack using Terraform
 
@@ -166,7 +169,7 @@ This command will generate the necessary Terraform JSON configuration files in t
 After synthesizing the configuration, navigate to the folder where the Terraform JSON output is located:
 
 ```bash
-cd cdktf.out/stacks/iot-ingest-and-control
+cd cdktf.out/stacks/rest-sse
 ```
 
 Speicfy the necessary variables based on your setup.
@@ -203,16 +206,19 @@ nslookup network-load-balancer-******.elb.us-east-1.amazonaws.com
 ```
 For testing purposes you can edit your local /etc/hosts file instead of updating your DNS provider. For example:
 ```bash
-X.X.X.X  mqtt.example.aklivity.io
+X.X.X.X  web.example.aklivity.io
 ```
 
-### 8. Test the Zilla Plus MQTT broker
-If you added `mqtt.example.aklivity.io` as the domain, open a terminal and subscribe to topic filter `sensors/#`
+### 8. Test the Zilla Plus REST and SSE
+If you added `web.example.aklivity.io` as the domain, open a terminal and use `curl` to open an SSE connection.
 ```bash
- mosquitto_sub -V '5' --url mqtts://mqtt.example.aklivity.io/sensors/# -p 8883 -d
+curl -N --http2 -H "Accept:text/event-stream" -v "https://web.example.aklivity.io:7143/streams/<your path>"
 ```
 
-Open another terminal and publish to topic `sensors/one`.
+Note that `your path` defaults to the exposed kafka topic in your conifg.
+
+In another terminal, use `curl` to POST and notice the data arriving on your SSE stream.
+
 ```bash
-mosquitto_pub -V '5' --url mqtts://mqtt.example.aklivity.io/sensors/one -p 8883 -m "Hello, World" -d
+curl -d 'Hello, World' -X POST https://web.example.aklivity.io:7143/<your path>
 ```

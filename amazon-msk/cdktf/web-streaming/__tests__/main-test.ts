@@ -1,18 +1,18 @@
 import "cdktf/lib/testing/adapters/jest";
 import { Testing } from "cdktf";
-import { ZillaPlusIotAndControlStack } from "../main";
+import { ZillaPlusWebStreamingStack } from "../main";
 import { CloudwatchLogGroup } from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 import { autoscalingGroup, launchTemplate } from "@cdktf/provider-aws";
 import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 
-describe("Zilla Plus IOT and Control Stack Test", () => {
+describe("Zilla Plus Web Streaming Stack Test", () => {
   let output: string;
 
   beforeAll(() => {
     const app = Testing.app();
-    const stack = new ZillaPlusIotAndControlStack(app, "test");
+    const stack = new ZillaPlusWebStreamingStack(app, "test");
     output = Testing.synth(stack);
   });
 
@@ -40,6 +40,7 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
     expect(output).toHaveResourceWithProperties(CloudwatchLogGroup, {
       name: "${var.cloudwatch_logs_group}"
     })
+    delete process.env.CLOUDWATCH_ENABLED;
   });
 
   it("should have load balancer target group", async () => {
@@ -96,7 +97,7 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
           name: "${aws_iam_instance_profile.zilla_plus_instance_profile.name}"
         },
         image_id: "${data.aws_ami.LatestAmi.image_id}",
-        instance_type: "${var.zilla_plus_instance_type}",
+        instance_type: "${var.instance_type}",
         key_name: "",
         network_interfaces: [
           {
@@ -104,9 +105,9 @@ describe("Zilla Plus IOT and Control Stack Test", () => {
             device_index: 0,
             security_groups: [
               "${aws_security_group.ZillaPlusSecurityGroup.id}"
-            ]          
+            ]
           }
-        ],
+        ]
       });
   });
 });
