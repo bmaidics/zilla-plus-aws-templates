@@ -25,8 +25,6 @@ import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile
 import { IamRole } from "@cdktf/provider-aws/lib/iam-role";
 import { IamRolePolicy } from "@cdktf/provider-aws/lib/iam-role-policy";
 import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
-import { topic } from "./.gen/providers/kafka";
-import { KafkaProvider } from "./.gen/providers/kafka/provider";
 
 export class ZillaPlusIotAndControlStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
@@ -157,28 +155,6 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
 
     const bootstrapBrokers = [Fn.element(Fn.split(',', mskCluster.bootstrapBrokersSaslScram), 0)];
 
-    new TerraformOutput(this, 'brokers', {
-      value: bootstrapBrokers
-    });
-
-   const kafkaProvider = new KafkaProvider(this, 'mskKafkaCluster', {
-      bootstrapServers: bootstrapBrokers,
-      saslUsername: username,
-      saslPassword: password,
-      tlsEnabled: true,
-      saslAwsCredsDebug: true
-    })
-
-    new topic.Topic(this, 'my_kafka_topic', {
-      name: 'testTopic',
-      replicationFactor: 2,
-      partitions: 3,
-      config: {
-        'cleanup.policy': 'compact'
-      },
-      provider: kafkaProvider
-    });
-
     const CREATE_ZILLA_PLUS_ROLE = process.env.CREATE_ZILLA_PLUS_ROLE !== "false";
 
     let zillaPlusRole;
@@ -218,7 +194,7 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
                             'arn:aws:iam::aws:policy/AWSGlueSchemaRegistryReadonlyAccess', 'arn:aws:iam::aws:policy/CloudWatchLogsFullAccess'],
         inlinePolicy: [
           {
-            name: 'CCProxySecretsManagerRead',
+            name: 'ZillaPlusSecretsManagerRead',
             policy: JSON.stringify({
               "Version": "2012-10-17",
               "Statement": [
@@ -234,8 +210,6 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
                           "secretsmanager:DescribeSecret"
                       ],
                       "Resource": [
-                          "arn:aws:secretsmanager:*:*:secret:wildcard.example.aklivity.io*",
-                          "arn:aws:secretsmanager:*:*:secret:client-*",
                           "*"
                       ]
                   }
@@ -551,21 +525,45 @@ ${bindingTelemetryContent}
 `;
 
     
-        const cfnHupConfContent = `
+    const cfnHupConfContent = `
 [main]
 stack=${id}
 region=${region}
     `;
     
-        const cfnAutoReloaderConfContent = `
+    const cfnAutoReloaderConfContent = `
 [cfn-auto-reloader-hook]
 triggers=post.update
 path=Resources.MSKProxyLaunchTemplate.Metadata.AWS::CloudFormation::Init
 action=/opt/aws/bin/cfn-init -v --stack ${id} --resource ZillaPlusLaunchTemplate --region ${region}
 runas=root
     `;
+
+
+    const MQTT_KAFKA_TOPIC_CREATION_DISABLED = process.env.MQTT_KAFKA_TOPIC_CREATION_DISABLED === "true";
+
+    let kafkaTopicCreationCommand = '';
+
+    if (!MQTT_KAFKA_TOPIC_CREATION_DISABLED)
+    {
+      kafkaTopicCreationCommand = `
+wget https://archive.apache.org/dist/kafka/3.5.1/kafka_2.13-3.5.1.tgz
+tar -xzf kafka_2.13-3.5.1.tgz
+cd kafka_2.13-3.5.1/libs
+wget https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.1/aws-msk-iam-auth-1.1.1-all.jar
+cd ../bin
+cat <<'END_HELP'> client.properties
+sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username='${username}' password='${password}';
+security.protocol=SASL_SSL
+sasl.mechanism=SCRAM-SHA-512
+END_HELP
+./kafka-topics.sh --create --bootstrap-server ${bootstrapBrokers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttSessions} --config 'cleanup.policy=compact'
+./kafka-topics.sh --create --bootstrap-server ${bootstrapBrokers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttRetained} --config 'cleanup.policy=compact'
+./kafka-topics.sh --create --bootstrap-server ${bootstrapBrokers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${kafkaTopicMqttMessages}
+      `
+    }
     
-        const userData = `#!/bin/bash -xe
+    const userData = `#!/bin/bash -xe
 yum update -y aws-cfn-bootstrap
 cat <<'END_HELP' > /etc/zilla/zilla.yaml
 ${zillaYamlContent}
@@ -595,6 +593,8 @@ systemctl enable amazon-ssm-agent
 systemctl start amazon-ssm-agent
 systemctl enable zilla-plus
 systemctl start zilla-plus
+
+${kafkaTopicCreationCommand}
 
     `;
         

@@ -1,18 +1,18 @@
 import "cdktf/lib/testing/adapters/jest";
 import { Testing } from "cdktf";
-import { ZillaPlusRestSseStack } from "../main";
+import { ZillaPlusWebStreamingStack } from "../main";
 import { CloudwatchLogGroup } from "@cdktf/provider-aws/lib/cloudwatch-log-group";
 import { autoscalingGroup, launchTemplate } from "@cdktf/provider-aws";
 import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 
-describe("Zilla Plus REST and SSE Stack Test", () => {
+describe("Zilla Plus Web Streaming Stack Test", () => {
   let output: string;
 
   beforeAll(() => {
     const app = Testing.app();
-    const stack = new ZillaPlusRestSseStack(app, "test");
+    const stack = new ZillaPlusWebStreamingStack(app, "test");
     output = Testing.synth(stack);
   });
 
@@ -20,24 +20,23 @@ describe("Zilla Plus REST and SSE Stack Test", () => {
     expect(output).toHaveResourceWithProperties(
       autoscalingGroup.AutoscalingGroup,
       {
-        min_size: 1,
+        desired_capacity: "${var.zilla_plus_capacity}",
+        launch_template: {
+          id: "${aws_launch_template.ZillaPlusLaunchTemplate.id}"
+        },
         max_size: 5,
-        launch_template: expect.objectContaining({
-          id: expect.stringContaining("${aws_launch_template.ZillaPlusLaunchTemplate.id}")
-        }),
-        target_group_arns: expect.arrayContaining(
-          ["${aws_lb_target_group.NLBTargetGroup.arn}"]
-        ),
-        vpc_zone_identifier: "${var.subnet_ids}" 
+        min_size: 1,
+        target_group_arns: [
+          "${aws_lb_target_group.NLBTargetGroup.arn}"
+        ],
+        vpc_zone_identifier: [
+          "${aws_subnet.PublicSubnet1.id}",
+          "${aws_subnet.PublicSubnet2.id}"
+        ]
       });
   });
 
   it("should have cloudwatch group resource", async () => {
-    process.env.CLOUDWATCH_ENABLED="true";
-    const app = Testing.app();
-    const stack = new ZillaPlusRestSseStack(app, "test");
-    const output = Testing.synth(stack);
-
     expect(output).toHaveResourceWithProperties(CloudwatchLogGroup, {
       name: "${var.cloudwatch_logs_group}"
     })
@@ -48,10 +47,10 @@ describe("Zilla Plus REST and SSE Stack Test", () => {
 
     expect(output).toHaveResourceWithProperties(
       LbTargetGroup, {
-        vpc_id: "${var.vpc_id}",
         name: "nlb-target-group",
         port: "${var.public_tcp_port}",
-        protocol: "TCP"
+        protocol: "TCP",
+        vpc_id: "${data.aws_vpc.Vpc.id}"
       });
   });
 
@@ -63,8 +62,13 @@ describe("Zilla Plus REST and SSE Stack Test", () => {
         internal: false,
         load_balancer_type: "network",
         name: "network-load-balancer",
-        security_groups: "${var.zilla_plus_security_groups}",
-        subnets: "${var.subnet_ids}"
+        security_groups: [
+          "${aws_security_group.ZillaPlusSecurityGroup.id}"
+        ],
+        subnets: [
+          "${aws_subnet.PublicSubnet1.id}",
+          "${aws_subnet.PublicSubnet2.id}"
+        ]
       });
   });
 
@@ -90,7 +94,7 @@ describe("Zilla Plus REST and SSE Stack Test", () => {
     expect(output).toHaveResourceWithProperties(
       launchTemplate.LaunchTemplate, {
         iam_instance_profile: {
-          name: "${var.zilla_plus_role}"
+          name: "${aws_iam_instance_profile.zilla_plus_instance_profile.name}"
         },
         image_id: "${data.aws_ami.LatestAmi.image_id}",
         instance_type: "${var.instance_type}",
@@ -99,9 +103,11 @@ describe("Zilla Plus REST and SSE Stack Test", () => {
           {
             associate_public_ip_address: "true",
             device_index: 0,
-            security_groups: "${var.zilla_plus_security_groups}"
+            security_groups: [
+              "${aws_security_group.ZillaPlusSecurityGroup.id}"
+            ]
           }
-        ],
+        ]
       });
   });
 });
