@@ -8,15 +8,17 @@ This guide will help you gather the necessary AWS values required to configure a
 2. Configure AWS CLI: Run `aws configure` and follow the prompts to set up your AWS credentials.
 3. Set your aws region: `aws configure set region us-east-1` 
 4. Verify your region and credentials: `aws configure list`
+```
       Name                    Value             Type    Location
       ----                    -----             ----    --------
    profile                <not set>             None    None
 access_key     ****************XXXX              env    
 secret_key     ****************XXXX              env    
     region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
-5. Ensure you have `Node.js` installed `npm --version`.
-6. Ensure you have `Homebrew` installed. `brew --version`
-7. Install Terraform using Homebrew
+```
+6. Ensure you have `Node.js` installed `npm --version`.
+7. Ensure you have `Homebrew` installed. `brew --version`
+8. Install Terraform using Homebrew
 
 ```bash
 brew tap hashicorp/tap
