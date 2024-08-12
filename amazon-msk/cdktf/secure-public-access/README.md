@@ -16,9 +16,9 @@ access_key     ****************XXXX              env
 secret_key     ****************XXXX              env    
     region                us-east-1              env    ['AWS_REGION', 'AWS_DEFAULT_REGION']
 ```
-6. Ensure you have `Node.js` installed `npm --version`.
-7. Ensure you have `Homebrew` installed. `brew --version`
-8. Install Terraform using Homebrew
+5. Ensure you have `Node.js` installed `npm --version`.
+6. Ensure you have `Homebrew` installed. `brew --version`
+7. Install Terraform using Homebrew
 
 ```bash
 brew tap hashicorp/tap
