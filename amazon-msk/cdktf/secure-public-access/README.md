@@ -374,7 +374,7 @@ The Zilla proxy relies on TLS so we need to create a file called client.properti
 
 ##### client.properties
 
-```toml
+```text
 security.protocol=SSL
 ssl.keystore.location=/tmp/kafka.client.keystore.jks
 ssl.keystore.password=generated
@@ -388,7 +388,7 @@ Notice we used the default username and password, but you will need to replace t
 
 ##### client.properties
 
-```toml
+```text
 sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username="alice" password="alice-secret";
 security.protocol=SASL_SSL
 sasl.mechanism=SCRAM-SHA-512
@@ -410,7 +410,7 @@ The Zilla proxy relies on TLS so we need to create a file called client.properti
 
 ##### client.properties
 
-```toml
+```text
 security.protocol=SSL
 ssl.truststore.location=/tmp/kafka.client.truststore.jks
 ```
@@ -423,7 +423,7 @@ We can now verify that the Kafka client can successfully communicate with your M
 
 If using the wildcard DNS pattern `*.example.aklivity.io`, then we use the following as TLS bootstrap server names for the Kafka client:
 
-```bash
+```text
 b-1.example.aklivity.io:9094,b-2.example.aklivity.io:9094
 ```
 
