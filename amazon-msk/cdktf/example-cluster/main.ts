@@ -20,201 +20,207 @@ export class ZillaPlusExampleMskCluster extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
 
-    const awsProvider = new AwsProvider(this, "AWS", {
-    });
+    const awsProvider = new AwsProvider(this, "AWS", {});
 
-    const MTLS_ENABLED = process.env.MTLS_ENABLED === 'true';
-    let mskCertificateAuthority = '';
-    if (MTLS_ENABLED)
-    {
-      const mskCertificateAuthorityVar = new TerraformVariable(this, 'msk_certificate_authority_arn', {
-        type: 'string',
-        description: 'ACM Private Certificate Authority ARN used to authorize clients connecting to the MSK cluster'
-      });
-      new DataAwsAcmpcaCertificateAuthority(this, 'MSKCertificateAuthority', {
+    const MTLS_ENABLED = process.env.MTLS_ENABLED === "true";
+    let mskCertificateAuthority = "";
+    if (MTLS_ENABLED) {
+      const mskCertificateAuthorityVar = new TerraformVariable(
+        this,
+        "msk_certificate_authority_arn",
+        {
+          type: "string",
+          description:
+            "ACM Private Certificate Authority ARN used to authorize clients connecting to the MSK cluster",
+        }
+      );
+      new DataAwsAcmpcaCertificateAuthority(this, "MSKCertificateAuthority", {
         arn: mskCertificateAuthorityVar.stringValue,
       });
       mskCertificateAuthority = mskCertificateAuthorityVar.stringValue;
     }
 
-    const vpc = new Vpc(this, 'MskVpc', {
-      cidrBlock: '10.0.0.0/16',
+    const vpc = new Vpc(this, "MskVpc", {
+      cidrBlock: "10.0.0.0/16",
       enableDnsHostnames: true,
       enableDnsSupport: true,
       tags: {
-        Name: 'msk-vpc'
-      }
+        Name: "msk-vpc",
+      },
     });
 
-    const region = new DataAwsRegion(this, 'CurrentRegion', {
-      provider: awsProvider
+    const region = new DataAwsRegion(this, "CurrentRegion", {
+      provider: awsProvider,
     });
 
-    const privateSubnet1 = new Subnet(this, 'PrivateSubnet1', {
+    const privateSubnet1 = new Subnet(this, "PrivateSubnet1", {
       vpcId: vpc.id,
-      cidrBlock: '10.0.128.0/20',
+      cidrBlock: "10.0.128.0/20",
       availabilityZone: `${region.name}a`,
       mapPublicIpOnLaunch: false,
       tags: {
-        Name: 'msk-private-subnet-1'
-      }
+        Name: "msk-private-subnet-1",
+      },
     });
 
-    const privateSubnet2 = new Subnet(this, 'PrivateSubnet2', {
+    const privateSubnet2 = new Subnet(this, "PrivateSubnet2", {
       vpcId: vpc.id,
-      cidrBlock: '10.0.144.0/20',
+      cidrBlock: "10.0.144.0/20",
       availabilityZone: `${region.name}b`,
       mapPublicIpOnLaunch: false,
       tags: {
-        Name: 'msk-private-subnet-2'
-      }
+        Name: "msk-private-subnet-2",
+      },
     });
 
-    const securityGroup = new SecurityGroup(this, 'MskSecurityGroup', {
+    const securityGroup = new SecurityGroup(this, "MskSecurityGroup", {
       vpcId: vpc.id,
-      description: 'Security group for MSK cluster',
+      description: "Security group for MSK cluster",
       ingress: [
         {
           fromPort: 9092,
           toPort: 9096,
-          protocol: 'tcp',
-          cidrBlocks: ['0.0.0.0/0']
-        }
+          protocol: "tcp",
+          cidrBlocks: ["0.0.0.0/0"],
+        },
       ],
       egress: [
         {
           fromPort: 0,
           toPort: 65535,
-          protocol: 'tcp',
-          cidrBlocks: ['0.0.0.0/0']
-        }
+          protocol: "tcp",
+          cidrBlocks: ["0.0.0.0/0"],
+        },
       ],
       tags: {
-        Name: 'msk-security-group'
-      }
+        Name: "msk-security-group",
+      },
     });
 
-    const kmsKey = new KmsKey(this, 'MskKmsKey', {
+    const kmsKey = new KmsKey(this, "MskKmsKey", {
       policy: JSON.stringify({
-        Version: '2012-10-17',
-        Id: 'key-consolepolicy-3',
+        Version: "2012-10-17",
+        Id: "key-consolepolicy-3",
         Statement: [
           {
-            Sid: 'Enable IAM User Permissions',
-            Effect: 'Allow',
+            Sid: "Enable IAM User Permissions",
+            Effect: "Allow",
             Principal: {
-              AWS: '*'
+              AWS: "*",
             },
-            Action: 'kms:*',
-            Resource: '*'
-          }
-        ]
+            Action: "kms:*",
+            Resource: "*",
+          },
+        ],
       }),
-      description: 'KMS key for MSK',
-      keyUsage: 'ENCRYPT_DECRYPT',
-      customerMasterKeySpec: 'SYMMETRIC_DEFAULT',
-      isEnabled: true
-    });
-    
-    new KmsAlias(this, 'MskKmsKeyAlias', {
-      name: 'alias/AmazonMSK_key2',
-      targetKeyId: kmsKey.keyId
+      description: "KMS key for MSK",
+      keyUsage: "ENCRYPT_DECRYPT",
+      customerMasterKeySpec: "SYMMETRIC_DEFAULT",
+      isEnabled: true,
     });
 
-    const saslScramSecret = new SecretsmanagerSecret(this, 'SaslScramSecret', {
-      name: 'AmazonMSK_alice',
-      kmsKeyId: kmsKey.keyId
+    new KmsAlias(this, "MskKmsKeyAlias", {
+      name: "alias/AmazonMSK_key2",
+      targetKeyId: kmsKey.keyId,
     });
-    
-    new SecretsmanagerSecretVersion(this, 'SaslScramSecretVersion', {
+
+    const saslScramSecret = new SecretsmanagerSecret(this, "SaslScramSecret", {
+      name: "AmazonMSK_alice",
+      kmsKeyId: kmsKey.keyId,
+    });
+
+    new SecretsmanagerSecretVersion(this, "SaslScramSecretVersion", {
       secretId: saslScramSecret.id,
       secretString: JSON.stringify({
-        username: 'alice',
-        password: 'alice-secret'
-      })
-    });
-    
-    const mskIamRole = new IamRole(this, 'MskIamRole', {
-      assumeRolePolicy: JSON.stringify({
-        Version: '2012-10-17',
-        Statement: [
-          {
-            Effect: 'Allow',
-            Principal: {
-              Service: 'kafka.amazonaws.com'
-            },
-            Action: 'sts:AssumeRole'
-          }
-        ]
-      })
-    });
-    
-    const mskSecretsManagerPolicy = new IamPolicy(this, 'MskSecretsManagerPolicy', {
-      policy: JSON.stringify({
-        Version: '2012-10-17',
-        Statement: [
-          {
-            Effect: 'Allow',
-            Action: [
-              'secretsmanager:GetSecretValue',
-              'secretsmanager:DescribeSecret'
-            ],
-            Resource: saslScramSecret.arn
-          }
-        ]
-      })
-    });
-    
-    new IamPolicyAttachment(this, 'MskSecretsManagerPolicyAttachment', {
-      name: 'msk-secrets-manager-policy-attachment',
-      roles: [mskIamRole.name],
-      policyArn: mskSecretsManagerPolicy.arn
+        username: "alice",
+        password: "alice-secret",
+      }),
     });
 
-    const mskCluster = new MskCluster(this, 'MskCluster', {
-      clusterName: 'my-msk-cluster',
-      kafkaVersion: '3.5.1',
+    const mskIamRole = new IamRole(this, "MskIamRole", {
+      assumeRolePolicy: JSON.stringify({
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Effect: "Allow",
+            Principal: {
+              Service: "kafka.amazonaws.com",
+            },
+            Action: "sts:AssumeRole",
+          },
+        ],
+      }),
+    });
+
+    const mskSecretsManagerPolicy = new IamPolicy(
+      this,
+      "MskSecretsManagerPolicy",
+      {
+        policy: JSON.stringify({
+          Version: "2012-10-17",
+          Statement: [
+            {
+              Effect: "Allow",
+              Action: [
+                "secretsmanager:GetSecretValue",
+                "secretsmanager:DescribeSecret",
+              ],
+              Resource: saslScramSecret.arn,
+            },
+          ],
+        }),
+      }
+    );
+
+    new IamPolicyAttachment(this, "MskSecretsManagerPolicyAttachment", {
+      name: "msk-secrets-manager-policy-attachment",
+      roles: [mskIamRole.name],
+      policyArn: mskSecretsManagerPolicy.arn,
+    });
+
+    const mskCluster = new MskCluster(this, "MskCluster", {
+      clusterName: "my-msk-cluster",
+      kafkaVersion: "3.5.1",
       numberOfBrokerNodes: 2,
       brokerNodeGroupInfo: {
-        instanceType: 'kafka.t3.small',
+        instanceType: "kafka.t3.small",
         clientSubnets: [privateSubnet1.id, privateSubnet2.id],
         securityGroups: [securityGroup.id],
       },
       encryptionInfo: {
         encryptionInTransit: {
-          clientBroker: 'TLS_PLAINTEXT',
-          inCluster: true
-        }
+          clientBroker: "TLS_PLAINTEXT",
+          inCluster: true,
+        },
       },
       clientAuthentication: {
         unauthenticated: true,
         sasl: {
-          scram: true
-        }
-      }
+          scram: true,
+        },
+      },
     });
 
-    new MskScramSecretAssociation(this, 'MskSecretsScramSecretAssociation', {
+    new MskScramSecretAssociation(this, "MskSecretsScramSecretAssociation", {
       clusterArn: mskCluster.arn,
-      secretArnList: [saslScramSecret.arn]
+      secretArnList: [saslScramSecret.arn],
     });
 
-    if (MTLS_ENABLED)
-    {
+    if (MTLS_ENABLED) {
       mskCluster.clientAuthentication.putTls({
-        certificateAuthorityArns: [mskCertificateAuthority]
-      },)
+        certificateAuthorityArns: [mskCertificateAuthority],
+      });
     }
 
-    new TerraformOutput(this, 'vpcId', {
+    new TerraformOutput(this, "vpcId", {
       value: vpc.id,
     });
 
-    new TerraformOutput(this, 'privateSubnetIds', {
+    new TerraformOutput(this, "privateSubnetIds", {
       value: [privateSubnet1.id, privateSubnet2.id],
     });
 
-    new TerraformOutput(this, 'mskClusterName', {
+    new TerraformOutput(this, "mskClusterName", {
       value: mskCluster.clusterName,
     });
   }
