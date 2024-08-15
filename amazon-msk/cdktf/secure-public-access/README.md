@@ -183,7 +183,7 @@ In your `terraform.tfvars` file add the desired CloudWatch Metrics Namespace for
 
 ### Enable SSH Access
 
-To enable SSH access to the instances, set the `SSH_KEY_ENABLED` environment variable  to `true`. You will also need the name of an existing EC2 KeyPair to set the `key_name` terraform variable.
+To enable SSH access to the instances, set the `SSH_KEY_ENABLED` environment variable  to `true`. You will also need the name of an existing EC2 KeyPair to set the `zilla_plus_ssh_key` terraform variable.
 
 List all EC2 KeyPairs:
 

@@ -1,12 +1,5 @@
 import { Construct } from "constructs";
-import {
-  App,
-  TerraformStack,
-  TerraformOutput,
-  TerraformVariable,
-  Fn,
-  Op,
-} from "cdktf";
+import { App, TerraformStack, TerraformOutput, TerraformVariable, Fn, Op } from "cdktf";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
@@ -52,31 +45,18 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       clusterName: mskClusterName.stringValue,
     });
 
-    const mskAccessCredentialsName = new TerraformVariable(
-      this,
-      "msk_access_credentials_name",
-      {
-        type: "string",
-        description:
-          "The MSK Access Credentials Secret Name with JSON properties; username, password",
-      }
-    );
+    const mskAccessCredentialsName = new TerraformVariable(this, "msk_access_credentials_name", {
+      type: "string",
+      description: "The MSK Access Credentials Secret Name with JSON properties; username, password",
+    });
     // Validate that the Credentials exists
-    const secret = new DataAwsSecretsmanagerSecretVersion(
-      this,
-      "mskAccessCredentials",
-      {
-        secretId: mskAccessCredentialsName.stringValue,
-      }
-    );
+    const secret = new DataAwsSecretsmanagerSecretVersion(this, "mskAccessCredentials", {
+      secretId: mskAccessCredentialsName.stringValue,
+    });
 
-    const mskClusterBrokerNodes = new DataAwsMskBrokerNodes(
-      this,
-      "MSKClusterBrokerNodes",
-      {
-        clusterArn: mskCluster.arn,
-      }
-    );
+    const mskClusterBrokerNodes = new DataAwsMskBrokerNodes(this, "MSKClusterBrokerNodes", {
+      clusterArn: mskCluster.arn,
+    });
 
     const subnetId = mskClusterBrokerNodes.nodeInfoList.get(0).clientSubnet;
 
@@ -119,27 +99,17 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
 
     const availabilityZones = new DataAwsAvailabilityZones(this, "AZs", {});
     const subnetOffset = subnets.ids.length;
-    const subnetMask = Fn.parseint(
-      Fn.element(Fn.split("/", vpc.cidrBlock), 1),
-      10
-    );
+    const subnetMask = Fn.parseint(Fn.element(Fn.split("/", vpc.cidrBlock), 1), 10);
     const availableIpv4 = subnet.availableIpAddressCount;
     // Math magic to find next power of 2 and based on that the subnetAddressPower
-    const subnetAddressPower = Fn.log(
-      Fn.pow(2, Fn.ceil(Fn.log(availableIpv4, 2))),
-      2
-    );
+    const subnetAddressPower = Fn.log(Fn.pow(2, Fn.ceil(Fn.log(availableIpv4, 2))), 2);
     const subnetsMax = Op.sub(32, Op.add(subnetAddressPower, subnetMask));
 
     const subnetIds = [];
     for (let i = 1; i < 3; i++) {
       const az = Fn.element(availabilityZones.names, i);
       const subnetIndex = subnetOffset + i;
-      const cidrBlock = Fn.cidrsubnet(
-        vpc.cidrBlock,
-        subnetsMax,
-        subnetIndex + i
-      );
+      const cidrBlock = Fn.cidrsubnet(vpc.cidrBlock, subnetsMax, subnetIndex + i);
 
       const subnet = new Subnet(this, `PublicSubnet${i}`, {
         vpcId: vpc.id,
@@ -159,60 +129,38 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       });
     }
 
-    const kafkaTopicMqttSessions = new TerraformVariable(
-      this,
-      "kafka_topic_mqtt_sessions",
-      {
-        type: "string",
-        description:
-          'The Kafka topic storing MQTT sessions, cleanup policy "compact"',
-        default: "mqtt-sessions",
-      }
-    );
+    const kafkaTopicMqttSessions = new TerraformVariable(this, "kafka_topic_mqtt_sessions", {
+      type: "string",
+      description: 'The Kafka topic storing MQTT sessions, cleanup policy "compact"',
+      default: "mqtt-sessions",
+    });
 
-    const kafkaTopicMqttMessages = new TerraformVariable(
-      this,
-      "kafka_topic_mqtt_messages",
-      {
-        type: "string",
-        description:
-          'The Kafka topic storing MQTT messages, cleanup policy "delete"',
-        default: "mqtt-messages",
-      }
-    );
+    const kafkaTopicMqttMessages = new TerraformVariable(this, "kafka_topic_mqtt_messages", {
+      type: "string",
+      description: 'The Kafka topic storing MQTT messages, cleanup policy "delete"',
+      default: "mqtt-messages",
+    });
 
-    const kafkaTopicMqttRetained = new TerraformVariable(
-      this,
-      "kafka_topic_mqtt_retained",
-      {
-        type: "string",
-        description:
-          'The Kafka topic storing MQTT retained, cleanup policy "compact"',
-        default: "mqtt-retained",
-      }
-    );
+    const kafkaTopicMqttRetained = new TerraformVariable(this, "kafka_topic_mqtt_retained", {
+      type: "string",
+      description: 'The Kafka topic storing MQTT retained, cleanup policy "compact"',
+      default: "mqtt-retained",
+    });
 
     const secretValue = Fn.jsondecode(secret.secretString);
     const username = Fn.lookup(secretValue, "username");
     const password = Fn.lookup(secretValue, "password");
 
-    const bootstrapBrokers = [
-      Fn.element(Fn.split(",", mskCluster.bootstrapBrokersSaslScram), 0),
-    ];
+    const bootstrapBrokers = [Fn.element(Fn.split(",", mskCluster.bootstrapBrokersSaslScram), 0)];
 
-    const CREATE_ZILLA_PLUS_ROLE =
-      process.env.CREATE_ZILLA_PLUS_ROLE !== "false";
+    const CREATE_ZILLA_PLUS_ROLE = process.env.CREATE_ZILLA_PLUS_ROLE !== "false";
 
     let zillaPlusRole;
     if (!CREATE_ZILLA_PLUS_ROLE) {
-      const zillaPlusRoleVar = new TerraformVariable(
-        this,
-        "zilla_plus_role_name",
-        {
-          type: "string",
-          description: "The role name assumed by Zilla Plus instances.",
-        }
-      );
+      const zillaPlusRoleVar = new TerraformVariable(this, "zilla_plus_role_name", {
+        type: "string",
+        description: "The role name assumed by Zilla Plus instances.",
+      });
 
       zillaPlusRole = zillaPlusRoleVar.stringValue;
     } else {
@@ -268,14 +216,10 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
         ],
       });
 
-      const iamInstanceProfile = new IamInstanceProfile(
-        this,
-        "zilla_plus_instance_profile",
-        {
-          name: "zilla_plus_role",
-          role: iamRole.name,
-        }
-      );
+      const iamInstanceProfile = new IamInstanceProfile(this, "zilla_plus_instance_profile", {
+        name: "zilla_plus_role",
+        role: iamRole.name,
+      });
 
       new IamRolePolicy(this, "ZillaPlusRolePolicy", {
         role: iamRole.name,
@@ -285,10 +229,7 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
             {
               Sid: "VisualEditor0",
               Effect: "Allow",
-              Action: [
-                "secretsmanager:GetSecretValue",
-                "secretsmanager:DescribeSecret",
-              ],
+              Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
               Resource: ["arn:aws:secretsmanager:*:*:secret:*"],
             },
           ],
@@ -304,20 +245,14 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       description: "The public port number to be used by MQTT clients",
     });
 
-    const CREATE_ZILLA_PLUS_SECURITY_GROUP =
-      process.env.CREATE_ZILLA_PLUS_SECURITY_GROUP !== "false";
+    const CREATE_ZILLA_PLUS_SECURITY_GROUP = process.env.CREATE_ZILLA_PLUS_SECURITY_GROUP !== "false";
     let zillaPlusSecurityGroups;
 
     if (!CREATE_ZILLA_PLUS_SECURITY_GROUP) {
-      const zillaPlusSecurityGroupsVar = new TerraformVariable(
-        this,
-        "zilla_plus_security_groups",
-        {
-          type: "list(string)",
-          description:
-            "The security groups associated with Zilla Plus instances.",
-        }
-      );
+      const zillaPlusSecurityGroupsVar = new TerraformVariable(this, "zilla_plus_security_groups", {
+        type: "list(string)",
+        description: "The security groups associated with Zilla Plus instances.",
+      });
       zillaPlusSecurityGroups = zillaPlusSecurityGroupsVar.listValue;
     } else {
       const zillaPlusSG = new SecurityGroup(this, "ZillaPlusSecurityGroup", {
@@ -346,24 +281,16 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       zillaPlusSecurityGroups = [zillaPlusSG.id];
     }
 
-    const zillaPlusCapacity = new TerraformVariable(
-      this,
-      "zilla_plus_capacity",
-      {
-        type: "number",
-        default: 2,
-        description: "The initial number of Zilla Plus instances",
-      }
-    );
+    const zillaPlusCapacity = new TerraformVariable(this, "zilla_plus_capacity", {
+      type: "number",
+      default: 2,
+      description: "The initial number of Zilla Plus instances",
+    });
 
-    const publicTlsCertificateKey = new TerraformVariable(
-      this,
-      "public_tls_certificate_key",
-      {
-        type: "string",
-        description: "TLS Certificate Private Key Secret ARN",
-      }
-    );
+    const publicTlsCertificateKey = new TerraformVariable(this, "public_tls_certificate_key", {
+      type: "string",
+      description: "TLS Certificate Private Key Secret ARN",
+    });
     // Validate that the Certificate Key exists
     new DataAwsSecretsmanagerSecretVersion(this, "publicTlsCertificate", {
       secretId: publicTlsCertificateKey.stringValue,
@@ -375,26 +302,18 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
     if (SSH_KEY_ENABLED) {
       const keyNameVar = new TerraformVariable(this, "zilla_plus_ssh_key", {
         type: "string",
-        description:
-          "Name of an existing EC2 KeyPair to enable SSH access to the instances",
+        description: "Name of an existing EC2 KeyPair to enable SSH access to the instances",
       });
       keyName = keyNameVar.stringValue;
     }
 
-    const instanceType = new TerraformVariable(
-      this,
-      "zilla_plus_instance_type",
-      {
-        type: "string",
-        default: "t3.small",
-        description: "MSK Proxy EC2 instance type",
-      }
-    );
+    const instanceType = new TerraformVariable(this, "zilla_plus_instance_type", {
+      type: "string",
+      default: "t3.small",
+      description: "MSK Proxy EC2 instance type",
+    });
     instanceType.addValidation({
-      condition: `${Fn.contains(
-        instanceTypes.instanceTypes,
-        instanceType.stringValue
-      )}`,
+      condition: `${Fn.contains(instanceTypes.instanceTypes, instanceType.stringValue)}`,
       errorMessage: "must be a valid EC2 instance type.",
     });
 
@@ -407,27 +326,17 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       const defaultLogGroupName = `${id}-group`;
       const defaultMetricNamespace = `${id}-namespace`;
 
-      const cloudWatchLogsGroup = new TerraformVariable(
-        this,
-        "cloudwatch_logs_group",
-        {
-          type: "string",
-          description:
-            "The Cloud Watch log group Zilla Plush should publish logs",
-          default: defaultLogGroupName,
-        }
-      );
+      const cloudWatchLogsGroup = new TerraformVariable(this, "cloudwatch_logs_group", {
+        type: "string",
+        description: "The Cloud Watch log group Zilla Plush should publish logs",
+        default: defaultLogGroupName,
+      });
 
-      const cloudWatchMetricsNamespace = new TerraformVariable(
-        this,
-        "cloudwatch_metrics_namespace",
-        {
-          type: "string",
-          description:
-            "The Cloud Watch metrics namespace Zilla Plush should publish metrics",
-          default: defaultMetricNamespace,
-        }
-      );
+      const cloudWatchMetricsNamespace = new TerraformVariable(this, "cloudwatch_metrics_namespace", {
+        type: "string",
+        description: "The Cloud Watch metrics namespace Zilla Plush should publish metrics",
+        default: defaultMetricNamespace,
+      });
 
       new CloudwatchLogGroup(this, "loggroup", {
         name: cloudWatchLogsGroup.stringValue,
@@ -513,22 +422,11 @@ ${metricsSection}`;
       ],
     });
 
-    const kafkaSaslUsername = Fn.join("", [
-      "${{aws.secrets.",
-      mskAccessCredentialsName.stringValue,
-      "#username}}",
-    ]);
+    const kafkaSaslUsername = Fn.join("", ["${{aws.secrets.", mskAccessCredentialsName.stringValue, "#username}}"]);
 
-    const kafkaSaslPassword = Fn.join("", [
-      "${{aws.secrets.",
-      mskAccessCredentialsName.stringValue,
-      "#password}}",
-    ]);
+    const kafkaSaslPassword = Fn.join("", ["${{aws.secrets.", mskAccessCredentialsName.stringValue, "#password}}"]);
 
-    const kafkaBootstrapServers = `['${Fn.join(
-      `','`,
-      Fn.split(",", mskCluster.bootstrapBrokersSaslScram)
-    )}']`;
+    const kafkaBootstrapServers = `['${Fn.join(`','`, Fn.split(",", mskCluster.bootstrapBrokersSaslScram))}']`;
 
     const zillaYamlContent = `
 name: public
@@ -620,8 +518,7 @@ action=/opt/aws/bin/cfn-init -v --stack ${id} --resource ZillaPlusLaunchTemplate
 runas=root
     `;
 
-    const MQTT_KAFKA_TOPIC_CREATION_DISABLED =
-      process.env.MQTT_KAFKA_TOPIC_CREATION_DISABLED === "true";
+    const MQTT_KAFKA_TOPIC_CREATION_DISABLED = process.env.MQTT_KAFKA_TOPIC_CREATION_DISABLED === "true";
 
     let kafkaTopicCreationCommand = "";
 
@@ -678,26 +575,22 @@ ${kafkaTopicCreationCommand}
 
     `;
 
-    const MSKProxyLaunchTemplate = new launchTemplate.LaunchTemplate(
-      this,
-      "ZillaPlusLaunchTemplate",
-      {
-        imageId: ami.imageId,
-        instanceType: instanceType.stringValue,
-        networkInterfaces: [
-          {
-            associatePublicIpAddress: "true",
-            deviceIndex: 0,
-            securityGroups: zillaPlusSecurityGroups,
-          },
-        ],
-        iamInstanceProfile: {
-          name: zillaPlusRole,
+    const MSKProxyLaunchTemplate = new launchTemplate.LaunchTemplate(this, "ZillaPlusLaunchTemplate", {
+      imageId: ami.imageId,
+      instanceType: instanceType.stringValue,
+      networkInterfaces: [
+        {
+          associatePublicIpAddress: "true",
+          deviceIndex: 0,
+          securityGroups: zillaPlusSecurityGroups,
         },
-        keyName: keyName,
-        userData: Fn.base64encode(userData),
-      }
-    );
+      ],
+      iamInstanceProfile: {
+        name: zillaPlusRole,
+      },
+      keyName: keyName,
+      userData: Fn.base64encode(userData),
+    });
 
     new autoscalingGroup.AutoscalingGroup(this, "zillaPlusGroup", {
       vpcZoneIdentifier: subnetIds,

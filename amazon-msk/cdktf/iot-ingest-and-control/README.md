@@ -128,7 +128,7 @@ Default Value
 
 ## Optional Features
 
-### SSH Key Access (key_name)
+### SSH Key Access (zilla_plus_ssh_key)
 
 To enable SSH access to the instances, set the environment variable `SSH_KEY_ENABLED` to `true`. You will also need the name of an existing EC2 KeyPair.
 
