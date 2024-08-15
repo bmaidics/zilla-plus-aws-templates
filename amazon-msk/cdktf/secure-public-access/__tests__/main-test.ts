@@ -91,7 +91,7 @@ describe("Zilla Plus Public Access Stack Test", () => {
       },
       image_id: "${data.aws_ami.LatestAmi.image_id}",
       instance_type: "${var.zilla_plus_instance_type}",
-      zilla_plus_ssh_key: "",
+      key_name: "",
       network_interfaces: [
         {
           associate_public_ip_address: "true",

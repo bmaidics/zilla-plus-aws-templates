@@ -85,8 +85,8 @@ describe("Zilla Plus Web Streaming Stack Test", () => {
         name: "${aws_iam_instance_profile.zilla_plus_instance_profile.name}",
       },
       image_id: "${data.aws_ami.LatestAmi.image_id}",
-      instance_type: "${var.instance_type}",
-      zilla_plus_ssh_key: "",
+      instance_type: "${var.zilla_plus_instance_type}",
+      key_name: "",
       network_interfaces: [
         {
           associate_public_ip_address: "true",
