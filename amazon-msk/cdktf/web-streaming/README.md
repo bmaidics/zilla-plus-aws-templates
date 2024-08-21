@@ -47,6 +47,13 @@ Use the `ClusterName` of your desired MSK cluster for this variable.
 
 Provide the Secret Name that is associated with your MSK cluster. If you use our provided example cluster, there is already a secret associated with the cluster called `AmazonMSK_alice`.
 
+List all secrets ub Secrets Manager that can be associated with MSK:
+
+```bash
+aws secretsmanager list-secrets --query "SecretList[?starts_with(Name, 'AmazonMSK_')].Name" --output table
+```
+
+
 ### `kafka_topic`: Kafka Topic
 
 This variable defines the Kafka topic exposed through REST and SSE.
@@ -151,7 +158,7 @@ In your `terraform.tfvars` file add the desired CloudWatch Metrics Namespace for
 
 ### Enable Glue Schema Registry
 
-To enable the Glue Schema Registry for schema fetching, set the environment variable `GLUE_REGISTRY_ENABLED` to `true`. You will also need the name of the Glue Registry.
+To enable the Glue Schema Registry for schema fetching, set the environment variable `GLUE_REGISTRY_ENABLED` to `true`. You will also need the name of the Glue Registry to set the `glue_registry` terraform variable.
 
 1. List all Glue Registries:
 
