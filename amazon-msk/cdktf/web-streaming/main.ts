@@ -48,13 +48,13 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
       clusterName: mskClusterName.stringValue,
     });
 
-    const mskAccessCredentialsName = new TerraformVariable(this, "msk_access_credentials_name", {
+    const mskCredentialsSecretName = new TerraformVariable(this, "msk_credentials_secret_name", {
       type: "string",
-      description: "The MSK Access Credentials Secret Name with JSON properties; username, password",
+      description: "The MSK Credentials Secret Name with JSON properties; username, password",
     });
     // Validate that the Credentials exists
-    const secret = new DataAwsSecretsmanagerSecretVersion(this, "mskAccessCredentials", {
-      secretId: mskAccessCredentialsName.stringValue,
+    new DataAwsSecretsmanagerSecretVersion(this, "mskAccessCredentials", {
+      secretId: mskCredentialsSecretName.stringValue,
     });
 
     const mskClusterBrokerNodes = new DataAwsMskBrokerNodes(this, "MSKClusterBrokerNodes", {
@@ -147,10 +147,6 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
       });
       path = `/${pathVar.stringValue}`;
     }
-
-    const secretValue = Fn.jsondecode(secret.secretString);
-    const username = Fn.lookup(secretValue, "username");
-    const password = Fn.lookup(secretValue, "password");
 
     const bootstrapBrokers = [Fn.element(Fn.split(",", mskCluster.bootstrapBrokersSaslScram), 0)];
 
@@ -453,9 +449,9 @@ ${metricsSection}`;
       ],
     });
 
-    const kafkaSaslUsername = Fn.join("", ["${{aws.secrets.", mskAccessCredentialsName.stringValue, "#username}}"]);
+    const kafkaSaslUsername = Fn.join("", ["${{aws.secrets.", mskCredentialsSecretName.stringValue, "#username}}"]);
 
-    const kafkaSaslPassword = Fn.join("", ["${{aws.secrets.", mskAccessCredentialsName.stringValue, "#password}}"]);
+    const kafkaSaslPassword = Fn.join("", ["${{aws.secrets.", mskCredentialsSecretName.stringValue, "#password}}"]);
 
     const kafkaBootstrapServers = `['${Fn.join(`','`, Fn.split(",", mskCluster.bootstrapBrokersSaslScram))}']`;
 
@@ -622,12 +618,16 @@ tar -xzf kafka_2.13-3.5.1.tgz
 cd kafka_2.13-3.5.1/libs
 wget https://github.com/aws/aws-msk-iam-auth/releases/download/v1.1.1/aws-msk-iam-auth-1.1.1-all.jar
 cd ../bin
-cat <<'END_HELP'> client.properties
-sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username='${username}' password='${password}';
+SECRET_STRING=$(aws secretsmanager get-secret-value --secret-id AmazonMSK_access --query SecretString --output text)
+USERNAME=$(echo $SECRET_STRING | jq -r '.username')
+PASSWORD=$(echo $SECRET_STRING | jq -r '.password')
+
+cat <<EOF> client.properties
+sasl.jaas.config=org.apache.kafka.common.security.scram.ScramLoginModule required username=$USERNAME password=$PASSWORD;
 security.protocol=SASL_SSL
 sasl.mechanism=SCRAM-SHA-512
-END_HELP
-./kafka-topics.sh --create --bootstrap-server ${bootstrapBrokers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${topic.stringValue} --config 'cleanup.policy=compact'
+EOF
+./kafka-topics.sh --create --if-not-exists --bootstrap-server ${bootstrapBrokers} --command-config client.properties --replication-factor 2 --partitions 3 --topic ${topic.stringValue} --config 'cleanup.policy=compact'
   `;
     }
 
@@ -683,7 +683,7 @@ ${kafkaTopicCreationCommand}
       userData: Fn.base64encode(userData),
     });
 
-    new autoscalingGroup.AutoscalingGroup(this, "zillaPlusGroup", {
+    new autoscalingGroup.AutoscalingGroup(this, "ZillaPlusGroup", {
       vpcZoneIdentifier: subnetIds,
       launchTemplate: {
         id: ZillaPlusLaunchTemplate.id,

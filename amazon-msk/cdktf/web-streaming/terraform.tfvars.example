@@ -1,5 +1,5 @@
 msk_cluster_name="<your msk cluster name>"
-msk_access_credentials_name="<your msk access credentials name>"
+msk_credentials_secret_name="<your msk credentials secret name>"
 kafka_topic="<your kafka topic>"
 public_tls_certificate_key="<your public tls certificate key ARN>"
 
