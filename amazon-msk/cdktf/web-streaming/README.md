@@ -43,7 +43,7 @@ aws kafka list-clusters --query 'ClusterInfoList[*].[ClusterName,ClusterArn]' --
 
 Use the `ClusterName` of your desired MSK cluster for this variable.
 
-### `msk_access_credentials_name`: MSK access credentials Secret Name
+### `msk_credentials_secret_name`: MSK Credentials Secret Name
 
 Provide the Secret Name that is associated with your MSK cluster. If you use our provided example cluster, there is already a secret associated with the cluster called `AmazonMSK_alice`.
 
@@ -223,7 +223,74 @@ terraform -chdir=cdktf.out/stacks/web-streaming init
 Apply the plan, review the resources to be create, and confirm to deploy the resources:
 
 ```bash
-terraform -chdir=cdktf.out/stacks/web-streaming apply
+terraform -chdir=cdktf.out/stacks/web-streaming apply -auto-approve
+```
+
+```bash
+...
+Changes to Outputs:
+  + NetworkLoadBalancerOutput = (known after apply)
+aws_internet_gateway.InternetGateway: Creating...
+aws_cloudwatch_log_group.loggroup: Creating...
+aws_route_table.PublicRouteTable: Creating...
+aws_subnet.PublicSubnet2: Creating...
+aws_iam_role.zilla_plus_role: Creating...
+aws_subnet.PublicSubnet1: Creating...
+aws_lb_target_group.NLBTargetGroup: Creating...
+aws_security_group.ZillaPlusSecurityGroup: Creating...
+aws_cloudwatch_log_group.loggroup: Creation complete after 1s [id=web-streaming-group]
+aws_internet_gateway.InternetGateway: Creation complete after 1s [id=igw-XXXX]
+aws_route_table.PublicRouteTable: Creation complete after 2s [id=rtb-XXXX]
+aws_route.PublicRoute: Creating...
+aws_iam_role.zilla_plus_role: Creation complete after 2s [id=zilla_plus_role]
+aws_iam_role_policy.ZillaPlusRolePolicy: Creating...
+aws_iam_instance_profile.zilla_plus_instance_profile: Creating...
+aws_route.PublicRoute: Creation complete after 1s [id=r-rtb-XXXX]
+aws_lb_target_group.NLBTargetGroup: Creation complete after 3s [id=arn:aws:elasticloadbalancing:<region>:XXXX:targetgroup/nlb-target-group/XXXX]
+aws_iam_role_policy.ZillaPlusRolePolicy: Creation complete after 1s [id=zilla_plus_role:terraform-XXXX]
+aws_iam_instance_profile.zilla_plus_instance_profile: Creation complete after 1s [id=zilla_plus_role]
+aws_security_group.ZillaPlusSecurityGroup: Creation complete after 4s [id=sg-XXXX]
+aws_launch_template.ZillaPlusLaunchTemplate: Creating...
+aws_launch_template.ZillaPlusLaunchTemplate: Creation complete after 1s [id=lt-XXXX]
+aws_subnet.PublicSubnet2: Still creating... [10s elapsed]
+aws_subnet.PublicSubnet1: Still creating... [10s elapsed]
+aws_subnet.PublicSubnet1: Creation complete after 12s [id=subnet-XXXX]
+aws_subnet.PublicSubnet2: Creation complete after 12s [id=subnet-XXXX]
+aws_route_table_association.PublicSubnet1RouteTableAssociation: Creating...
+aws_route_table_association.PublicSubnet2RouteTableAssociation: Creating...
+aws_lb.NetworkLoadBalancer: Creating...
+aws_autoscaling_group.ZillaPlusGroup: Creating...
+aws_route_table_association.PublicSubnet1RouteTableAssociation: Creation complete after 1s [id=rtbassoc-XXXX]
+aws_route_table_association.PublicSubnet2RouteTableAssociation: Creation complete after 1s [id=rtbassoc-XXXX]
+aws_lb.NetworkLoadBalancer: Still creating... [10s elapsed]
+aws_autoscaling_group.ZillaPlusGroup: Still creating... [10s elapsed]
+aws_autoscaling_group.ZillaPlusGroup: Creation complete after 12s [id=terraform-XXXX]
+aws_lb.NetworkLoadBalancer: Still creating... [20s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [30s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [40s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [50s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [1m0s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [1m10s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [1m20s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [1m30s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [1m40s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [1m50s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [2m0s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [2m10s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [2m20s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [2m30s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [2m40s elapsed]
+aws_lb.NetworkLoadBalancer: Still creating... [2m50s elapsed]
+aws_lb.NetworkLoadBalancer: Creation complete after 2m55s [id=arn:aws:elasticloadbalancing:<region>:XXXX:loadbalancer/net/network-load-balancer/XXXX]
+aws_lb_listener.NLBListener: Creating...
+aws_lb_listener.NLBListener: Creation complete after 1s [id=arn:aws:elasticloadbalancing:<region>:XXXX:listener/net/network-load-balancer/XXXX/XXXX]
+
+Apply complete! Resources: 17 added, 0 changed, 0 destroyed.
+
+Outputs:
+
+NetworkLoadBalancerOutput = "network-load-balancer-XXXX.elb.<region>.amazonaws.com"
+
 ```
 
 ### Configure Global DNS
@@ -254,4 +321,11 @@ In another terminal, use `curl` to POST and notice the data arriving on your SSE
 
 ```bash
 curl -d 'Hello, World' -X POST https://web.example.aklivity.io:7143/<your path>
+```
+
+
+## Destroy Stack using Terraform
+
+```bash
+terraform -chdir=cdktf.out/stacks/web-streaming destroy 
 ```
