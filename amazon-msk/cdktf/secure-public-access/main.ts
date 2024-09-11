@@ -259,19 +259,51 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
         role: iamRole.name,
       });
 
+      const iamPolicy = {
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Sid: "VisualEditor0",
+            Effect: "Allow",
+            Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+            Resource: ["arn:aws:secretsmanager:*:*:secret:*"],
+          },
+        ],
+      };
+
+      const publicTlsCertificateKey = new TerraformVariable(this, "public_tls_certificate_key", {
+        type: "string",
+        description: "TLS Certificate SecretsManager or CertificateManager ARN",
+      });
+
+      const publicTlsCertificateViaAcm =  publicTlsCertificateKey.stringValue.startsWith("arn:aws:acm:");
+
+      if (publicTlsCertificateViaAcm) {
+        iamPolicy.Statement = iamPolicy.Statement.concat([
+          {
+            "Sid": "Visual Editor",
+            "Effect": "Allow",
+            "Action": [ "s3:GetObject" ],
+            "Resource": ["arn:aws:s3:::*/*"]
+          },
+          {
+            "Sid": "Visual Editor",
+            "Effect": "Allow",
+            "Action": [ "kms:Decrypt" ],
+            "Resource": ["arn:aws:kms:*:*:key/*"]
+          },
+          {
+            "Sid": "Visual Editor",
+            "Effect": "Allow",
+            "Action": [ "iam:GetRole" ],
+            "Resource": [ `arn:aws:iam::*:role/${iamRole.name}` ]
+          }]
+        );
+      }
+
       new IamRolePolicy(this, "ZillaPlusRolePolicy", {
         role: iamRole.name,
-        policy: JSON.stringify({
-          Version: "2012-10-17",
-          Statement: [
-            {
-              Sid: "VisualEditor0",
-              Effect: "Allow",
-              Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
-              Resource: ["arn:aws:secretsmanager:*:*:secret:*"],
-            },
-          ],
-        }),
+        policy: JSON.stringify(iamPolicy),
       });
 
       zillaPlusRole = iamInstanceProfile.name;
@@ -329,14 +361,12 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       description: "The public wildcard DNS pattern for bootstrap servers to be used by Kafka clients",
     });
 
-    const publicTlsCertificateKey = new TerraformVariable(this, "public_tls_certificate_key", {
-      type: "string",
-      description: "TLS Certificate Private Key Secret ARN",
-    });
-    // Validate that the Certificate Key exists
-    new DataAwsSecretsmanagerSecretVersion(this, "publicTlsCertificate", {
-      secretId: publicTlsCertificateKey.stringValue,
-    });
+    if (publicTlsCertificateKey.stringValue.startsWith("arn:aws:secretsmanager:")) {
+      // Validate that the Certificate Key exists
+      new DataAwsSecretsmanagerSecretVersion(this, "publicTlsCertificate", {
+        secretId: publicTlsCertificateKey.stringValue,
+      });
+    }
 
     let keyName = "";
 
@@ -348,8 +378,33 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       keyName = keyNameVar.stringValue;
     }
 
+    let acmYamlContent = "";
+    let enclavesAcmServiceStart = "";
     let zillaTelemetryContent = "";
     let bindingTelemetryContent = "";
+
+    if (publicTlsCertificateViaAcm) {
+      acmYamlContent = `
+enclave:
+  cpu_count: 2
+  memory_mib: 256
+
+options:
+  sync_interval_secs: 600
+
+tokens:
+  - label: acm-token-example
+    source:
+      Acm:
+        certificate_arn: "${publicTlsCertificateKey}"
+    refresh_interval_secs: 43200
+    pin: 1234
+`
+      enclavesAcmServiceStart = `
+systemctl enable nitro-enclaves-acm.service
+systemctl start nitro-enclaves-acm.service
+`
+    }
 
     if (!userVariables.cloudwatchDisabled) {
       const defaultLogGroupName = `${id}-group`;
@@ -410,7 +465,7 @@ ${metricsSection}`;
 
     const instanceType = new TerraformVariable(this, "zilla_plus_instance_type", {
       type: "string",
-      default: "t3.small",
+      default: publicTlsCertificateViaAcm ? "c6i.xlarge" : "t3.small",
       description: "Zilla Plus EC2 instance type",
     });
     instanceType.addValidation({
@@ -467,7 +522,7 @@ ${metricsSection}`;
 name: public
 vaults:
   secure:
-    type: aws
+    type: ${publicTlsCertificateViaAcm ? "aws-acm" : "aws-secrets"}
 ${zillaTelemetryContent}
 bindings:
   tcp_server:
@@ -540,6 +595,10 @@ cat <<EOF > /etc/zilla/zilla.yaml
 ${zillaYamlContent}
 EOF
 
+cat <<EOF > /etc/nitro_enclaves/acm.yaml
+${acmYamlContent}
+EOF
+
 chown ec2-user:ec2-user /etc/zilla/zilla.yaml
 
 mkdir /etc/cfn
@@ -562,6 +621,7 @@ systemctl enable cfn-hup
 systemctl start cfn-hup
 systemctl enable amazon-ssm-agent
 systemctl start amazon-ssm-agent
+${enclavesAcmServiceStart}
 systemctl enable zilla-plus
 systemctl start zilla-plus
 
@@ -579,6 +639,9 @@ systemctl start zilla-plus
       ],
       iamInstanceProfile: {
         name: zillaPlusRole,
+      },
+      enclaveOptions: {
+        enabled: publicTlsCertificateViaAcm
       },
       keyName: keyName,
       userData: Fn.base64encode(userData),
