@@ -29,6 +29,8 @@ import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile
 
 import { UserVariables } from "./variables";
 
+import { AwsTerraformAdapter, provider } from "@cdktf/aws-cdk";
+
 export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
