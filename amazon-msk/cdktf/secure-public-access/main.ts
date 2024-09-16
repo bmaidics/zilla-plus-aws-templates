@@ -29,7 +29,7 @@ import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile
 
 import { UserVariables } from "./variables";
 
-import { AwsTerraformAdapter, provider } from "@cdktf/aws-cdk";
+//import { AwsTerraformAdapter, provider } from "@cdktf/aws-cdk";
 
 export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
@@ -191,6 +191,13 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
 - ${mskCertificateAuthority}`;
     }
 
+    const publicTlsCertificateKey = new TerraformVariable(this, "public_tls_certificate_key", {
+      type: "string",
+      description: "TLS Certificate SecretsManager or CertificateManager ARN",
+    });
+
+    const publicTlsCertificateViaAcm =  publicTlsCertificateKey.stringValue.startsWith("arn:aws:acm:");
+
     let zillaPlusRole;
     if (!userVariables.createZillaPlusRole) {
       const zillaPlusRoleVar = new TerraformVariable(this, "zilla_plus_role_name", {
@@ -272,13 +279,6 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
           },
         ],
       };
-
-      const publicTlsCertificateKey = new TerraformVariable(this, "public_tls_certificate_key", {
-        type: "string",
-        description: "TLS Certificate SecretsManager or CertificateManager ARN",
-      });
-
-      const publicTlsCertificateViaAcm =  publicTlsCertificateKey.stringValue.startsWith("arn:aws:acm:");
 
       if (publicTlsCertificateViaAcm) {
         iamPolicy.Statement = iamPolicy.Statement.concat([
