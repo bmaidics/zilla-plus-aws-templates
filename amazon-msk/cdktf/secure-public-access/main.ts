@@ -1,11 +1,10 @@
 import { Construct } from "constructs";
 import { App, TerraformStack, TerraformOutput, TerraformVariable, Fn, Op } from "cdktf";
 import instanceTypes from "./instance-types";
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
-import { dataAwsAmi, launchTemplate } from "@cdktf/provider-aws";
-import { autoscalingGroup } from "@cdktf/provider-aws";
+// import { dataAwsAmi, launchTemplate } from "@cdktf/provider-aws";
+import { autoscalingGroup, launchTemplate } from "@cdktf/provider-aws";
 import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
 import { DataAwsAcmpcaCertificateAuthority } from "@cdktf/provider-aws/lib/data-aws-acmpca-certificate-authority";
 import { DataAwsSecretsmanagerSecretVersion } from "@cdktf/provider-aws/lib/data-aws-secretsmanager-secret-version";
@@ -28,15 +27,16 @@ import { DataAwsSubnets } from "@cdktf/provider-aws/lib/data-aws-subnets";
 import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile";
 
 import { UserVariables } from "./variables";
-
-//import { AwsTerraformAdapter, provider } from "@cdktf/aws-cdk";
+import {aws_ec2 as ec2} from "aws-cdk-lib"
+import { AwsTerraformAdapter } from "@cdktf/aws-cdk";
+import { AwsProvider } from "@cdktf/aws-cdk/lib/aws/provider";
 
 export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
     const userVariables = new UserVariables(this, "main");
 
-    const awsProvider = new AwsProvider(this, "AWS", {});
+    const awsProvider = new AwsProvider(this, "AWS", { region: "us-east-1" });
 
     const region = new DataAwsRegion(this, "CurrentRegion", {
       provider: awsProvider,
@@ -196,7 +196,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       description: "TLS Certificate SecretsManager or CertificateManager ARN",
     });
 
-    const publicTlsCertificateViaAcm =  publicTlsCertificateKey.stringValue.startsWith("arn:aws:acm:");
+    const publicTlsCertificateViaAcm =  Fn.startswith(publicTlsCertificateKey.stringValue, "arn:aws:acm:");
 
     let zillaPlusRole;
     if (!userVariables.createZillaPlusRole) {
@@ -272,7 +272,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
         Version: "2012-10-17",
         Statement: [
           {
-            Sid: "VisualEditor0",
+            Sid: "secretStatement",
             Effect: "Allow",
             Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
             Resource: ["arn:aws:secretsmanager:*:*:secret:*"],
@@ -283,19 +283,19 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       if (publicTlsCertificateViaAcm) {
         iamPolicy.Statement = iamPolicy.Statement.concat([
           {
-            "Sid": "Visual Editor",
+            "Sid": "s3Statement",
             "Effect": "Allow",
             "Action": [ "s3:GetObject" ],
             "Resource": ["arn:aws:s3:::*/*"]
           },
           {
-            "Sid": "Visual Editor",
+            "Sid": "kmsDecryptStatement",
             "Effect": "Allow",
             "Action": [ "kms:Decrypt" ],
             "Resource": ["arn:aws:kms:*:*:key/*"]
           },
           {
-            "Sid": "Visual Editor",
+            "Sid": "getRoleStatement",
             "Effect": "Allow",
             "Action": [ "iam:GetRole" ],
             "Resource": [ `arn:aws:iam::*:role/${iamRole.name}` ]
@@ -309,6 +309,16 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       });
 
       zillaPlusRole = iamInstanceProfile.name;
+
+
+      const awsAdapter = new AwsTerraformAdapter(this, "adapter");
+
+      new ec2.CfnEnclaveCertificateIamRoleAssociation(awsAdapter, "enclaveIamRoleAssociation", {
+        roleArn: iamRole.arn,
+        certificateArn: publicTlsCertificateKey.stringValue
+      });
+
+      
     }
 
     let zillaPlusSecurityGroups;
@@ -363,7 +373,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       description: "The public wildcard DNS pattern for bootstrap servers to be used by Kafka clients",
     });
 
-    if (publicTlsCertificateKey.stringValue.startsWith("arn:aws:secretsmanager:")) {
+    if (!publicTlsCertificateViaAcm) {
       // Validate that the Certificate Key exists
       new DataAwsSecretsmanagerSecretVersion(this, "publicTlsCertificate", {
         secretId: publicTlsCertificateKey.stringValue,
@@ -398,7 +408,7 @@ tokens:
   - label: acm-token-example
     source:
       Acm:
-        certificate_arn: "${publicTlsCertificateKey}"
+        certificate_arn: '${publicTlsCertificateKey}'
     refresh_interval_secs: 43200
     pin: 1234
 `
@@ -475,19 +485,19 @@ ${metricsSection}`;
       errorMessage: "must be a valid EC2 instance type.",
     });
 
-    const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
-      mostRecent: true,
-      filter: [
-        {
-          name: "product-code",
-          values: ["ca5mgk85pjtbyuhtfluzisgzy"],
-        },
-        {
-          name: "is-public",
-          values: ["true"],
-        },
-      ],
-    });
+    // const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
+    //   mostRecent: true,
+    //   filter: [
+    //     {
+    //       name: "product-code",
+    //       values: ["ca5mgk85pjtbyuhtfluzisgzy"],
+    //     },
+    //     {
+    //       name: "is-public",
+    //       values: ["true"],
+    //     },
+    //   ],
+    // });
 
     const nlb = new Lb(this, `NetworkLoadBalancer-${id}`, {
       name: "network-load-balancer",
@@ -630,7 +640,7 @@ systemctl start zilla-plus
     `;
 
     const ZillaPlusLaunchTemplate = new launchTemplate.LaunchTemplate(this, "ZillaPlusLaunchTemplate", {
-      imageId: ami.imageId,
+      imageId: "ami-0a9620572dc37d193",
       instanceType: instanceType.stringValue,
       networkInterfaces: [
         {
