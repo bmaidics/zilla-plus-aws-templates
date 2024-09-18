@@ -603,6 +603,8 @@ cat <<EOF > /etc/zilla/zilla.yaml
 ${zillaYamlContent}
 EOF
 
+yum install -y aws-nitro-enclaves-acm
+
 cat <<EOF > /etc/nitro_enclaves/acm.yaml
 ${acmYamlContent}
 EOF
