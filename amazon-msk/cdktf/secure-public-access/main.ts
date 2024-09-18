@@ -3,8 +3,7 @@ import { App, TerraformStack, TerraformOutput, TerraformVariable, Fn, Op } from 
 import instanceTypes from "./instance-types";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
-// import { dataAwsAmi, launchTemplate } from "@cdktf/provider-aws";
-import { autoscalingGroup, launchTemplate } from "@cdktf/provider-aws";
+import { autoscalingGroup, dataAwsAmi, launchTemplate } from "@cdktf/provider-aws";
 import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
 import { DataAwsAcmpcaCertificateAuthority } from "@cdktf/provider-aws/lib/data-aws-acmpca-certificate-authority";
 import { DataAwsSecretsmanagerSecretVersion } from "@cdktf/provider-aws/lib/data-aws-secretsmanager-secret-version";
@@ -27,16 +26,18 @@ import { DataAwsSubnets } from "@cdktf/provider-aws/lib/data-aws-subnets";
 import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile";
 
 import { UserVariables } from "./variables";
-import {aws_ec2 as ec2} from "aws-cdk-lib"
-import { AwsTerraformAdapter } from "@cdktf/aws-cdk";
-import { AwsProvider } from "@cdktf/aws-cdk/lib/aws/provider";
+import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
+import { ec2EnclaveCertificateIamRoleAssociation } from "./.gen/providers/awscc"
+import { AwsccProvider } from "./.gen/providers/awscc/provider";
+
 
 export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
     const userVariables = new UserVariables(this, "main");
 
-    const awsProvider = new AwsProvider(this, "AWS", { region: "us-east-1" });
+    const awsProvider = new AwsProvider(this, "AWS", { });
+    new AwsccProvider(this, "AWSCC", { });
 
     const region = new DataAwsRegion(this, "CurrentRegion", {
       provider: awsProvider,
@@ -130,7 +131,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       });
     }
 
-    let mskClientAuthentication;
+    let mskClientAuthentication = userVariables.mskClientAuthentication;
     if (userVariables.mskClientAuthentication === "Unknown") {
       mskClientAuthentication = mskCluster.bootstrapBrokersTls
         ? "mTLS"
@@ -310,15 +311,10 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
 
       zillaPlusRole = iamInstanceProfile.name;
 
-
-      const awsAdapter = new AwsTerraformAdapter(this, "adapter");
-
-      new ec2.CfnEnclaveCertificateIamRoleAssociation(awsAdapter, "enclaveIamRoleAssociation", {
+      new ec2EnclaveCertificateIamRoleAssociation.Ec2EnclaveCertificateIamRoleAssociation(this, "ZillaPlusEnclaveIamRoleAssociation", {
         roleArn: iamRole.arn,
         certificateArn: publicTlsCertificateKey.stringValue
       });
-
-      
     }
 
     let zillaPlusSecurityGroups;
@@ -485,19 +481,19 @@ ${metricsSection}`;
       errorMessage: "must be a valid EC2 instance type.",
     });
 
-    // const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
-    //   mostRecent: true,
-    //   filter: [
-    //     {
-    //       name: "product-code",
-    //       values: ["ca5mgk85pjtbyuhtfluzisgzy"],
-    //     },
-    //     {
-    //       name: "is-public",
-    //       values: ["true"],
-    //     },
-    //   ],
-    // });
+    const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
+      mostRecent: true,
+      filter: [
+        {
+          name: "product-code",
+          values: ["ca5mgk85pjtbyuhtfluzisgzy"],
+        },
+        {
+          name: "is-public",
+          values: ["true"],
+        },
+      ],
+    });
 
     const nlb = new Lb(this, `NetworkLoadBalancer-${id}`, {
       name: "network-load-balancer",
@@ -640,7 +636,7 @@ systemctl start zilla-plus
     `;
 
     const ZillaPlusLaunchTemplate = new launchTemplate.LaunchTemplate(this, "ZillaPlusLaunchTemplate", {
-      imageId: "ami-0a9620572dc37d193",
+      imageId: ami.imageId,
       instanceType: instanceType.stringValue,
       networkInterfaces: [
         {
