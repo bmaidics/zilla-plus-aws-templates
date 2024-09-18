@@ -202,6 +202,16 @@ Install the node.js dependencies specified in the `package.json` file:
 npm install
 ```
 
+### Generate external Terraform Provider constructs
+
+Navigate to the CDKTF project directory.
+
+Run the following command to generate the constructs for external providers:
+
+```bash
+npm run get
+```
+
 ### Synthesize the Terraform Configuration
 
 First, you need to synthesize the Terraform configuration from the CDKTF code.

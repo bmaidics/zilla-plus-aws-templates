@@ -8,8 +8,8 @@
   "scripts": {
     "get": "cdktf get",
     "build": "tsc",
-    "synth": "cdktf synth",
-    "deploy": "cdktf deploy",
+    "synth": "NODE_OPTIONS='--max-old-space-size=8192' cdktf synth",
+    "deploy": "NODE_OPTIONS='--max-old-space-size=8192' cdktf deploy",
     "compile": "tsc --pretty",
     "watch": "tsc -w",
     "test": "jest",
