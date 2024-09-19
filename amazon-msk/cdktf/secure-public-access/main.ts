@@ -29,6 +29,7 @@ import { UserVariables } from "./variables";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { ec2EnclaveCertificateIamRoleAssociation } from "./.gen/providers/awscc"
 import { AwsccProvider } from "./.gen/providers/awscc/provider";
+import { DataAwsccMskCluster } from "./.gen/providers/awscc/data-awscc-msk-cluster";
 
 
 export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
@@ -131,9 +132,15 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       });
     }
 
+    const awsccMskCluster = new DataAwsccMskCluster(this, "awsccMskCluster", {
+      id: mskCluster.id
+    })
+
+    const mtlsEnabled = Fn.lengthOf(awsccMskCluster.clientAuthentication.tls.certificateAuthorityArnList) > 0;
+
     let mskClientAuthentication = userVariables.mskClientAuthentication;
     if (userVariables.mskClientAuthentication === "Unknown") {
-      mskClientAuthentication = mskCluster.bootstrapBrokersTls
+      mskClientAuthentication = mtlsEnabled
         ? "mTLS"
         : mskCluster.bootstrapBrokersSaslScram
         ? "SASL/SCRAM"
