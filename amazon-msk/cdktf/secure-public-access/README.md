@@ -45,7 +45,15 @@ Use the `ClusterName` of your desired MSK cluster for this variable.
 
 ### `public_tls_certificate_key`: Public TLS Certificate Key
 
-You need the ARN of the Secrets Manager secret that contains your public TLS certificate private key.
+You need the ARN of either the Certificte Manager certificate or the Secrets Manager secret that contains your public TLS certificate private key.
+
+List all certificates in Certificate Manager:
+
+```bash
+aws acm list-certificates --certificate-statuses ISSUED --query 'CertificateSummaryList[*].[DomainName,CertificateArn]' --output table
+```
+
+Find and note down the ARN of your public TLS certificate.
 
 List all secrets in Secrets Manager:
 
@@ -58,6 +66,7 @@ Find and note down the ARN of the secret that contains your public TLS certifica
 ### `public_wildcard_dns`: Public Wildcard DNS
 
 This variable defines the public wildcard DNS pattern for bootstrap servers to be used by Kafka clients.
+It should match the wildcard DNS of the public TLS certificate.
 
 ### `zilla_plus_capacity`: Zilla Plus Capacity
 
