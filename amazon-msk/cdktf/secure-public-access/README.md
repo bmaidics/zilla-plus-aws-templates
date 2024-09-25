@@ -259,7 +259,11 @@ terraform -chdir=cdktf.out/stacks/secure-public-access apply
 
 ### Configure Global DNS
 
-This ensures that any new Kafka brokers added to the cluster can still be reached via the Zilla proxy. When using a wildcard DNS name for your own domain, such as `*.example.aklivity.io` then the DNS entries are setup in your DNS provider. After deploying the stack, check the outputs, where you can find the NetworkLoadBalancer DNS. `NetworkLoadBalancerOutput = "network-load-balancer-******.elb.us-east-1.amazonaws.com"` Lookup the IP addresses of your load balancer using `nslookup` and the DNS of the NetworkLoadBalancer.
+This ensures that any new Kafka brokers added to the cluster can still be reached via the Zilla proxy. When using a wildcard DNS name for your own domain, such as `*.example.aklivity.io` then the DNS entries are setup in your DNS provider. After deploying the stack, check the outputs, where you can find the NetworkLoadBalancer DNS.
+```
+NetworkLoadBalancerOutput = "network-load-balancer-******.elb.us-east-1.amazonaws.com"
+```
+Lookup the IP addresses of your load balancer using `nslookup` and the DNS of the NetworkLoadBalancer.
 
 ```bash
 nslookup network-load-balancer-86334a80cbd16ec2.elb.us-east-2.amazonaws.com
