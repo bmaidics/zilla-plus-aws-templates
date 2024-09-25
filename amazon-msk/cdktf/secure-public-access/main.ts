@@ -137,12 +137,13 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
     })
 
     const mtlsEnabled = Fn.lengthOf(awsccMskCluster.clientAuthentication.tls.certificateAuthorityArnList) > 0;
+    const saslEnabled = Fn.lengthOf(mskCluster.bootstrapBrokersSaslScram) > 0;
 
     let mskClientAuthentication = userVariables.mskClientAuthentication;
     if (userVariables.mskClientAuthentication === "Unknown") {
       mskClientAuthentication = mtlsEnabled
         ? "mTLS"
-        : mskCluster.bootstrapBrokersSaslScram
+        : saslEnabled
         ? "SASL/SCRAM"
         : mskCluster.bootstrapBrokers
         ? "Unauthorized"
@@ -204,7 +205,13 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       description: "TLS Certificate SecretsManager or CertificateManager ARN",
     });
 
-    const publicTlsCertificateViaAcm =  Fn.startswith(publicTlsCertificateKey.stringValue, "arn:aws:acm:");
+    const publicTlsCertificateViaAcm = Fn.startswith(publicTlsCertificateKey.value, "arn:aws:acm:");
+    console.log("publicTlsCertificateViaAcm: " + publicTlsCertificateViaAcm);
+    if (publicTlsCertificateViaAcm) {
+      console.log("The string is truthy");
+    } else {
+      console.log("The string is falsy");
+    }
 
     let zillaPlusRole;
     if (!userVariables.createZillaPlusRole) {
@@ -289,6 +296,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       };
 
       if (publicTlsCertificateViaAcm) {
+        console.log("Fasza");
         iamPolicy.Statement = iamPolicy.Statement.concat([
           {
             "Sid": "s3Statement",
@@ -309,6 +317,11 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
             "Resource": [ `arn:aws:iam::*:role/${iamRole.name}` ]
           }]
         );
+
+        new ec2EnclaveCertificateIamRoleAssociation.Ec2EnclaveCertificateIamRoleAssociation(this, "ZillaPlusEnclaveIamRoleAssociation", {
+          roleArn: iamRole.arn,
+          certificateArn: publicTlsCertificateKey.stringValue
+        });
       }
 
       new IamRolePolicy(this, "ZillaPlusRolePolicy", {
@@ -317,11 +330,6 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       });
 
       zillaPlusRole = iamInstanceProfile.name;
-
-      new ec2EnclaveCertificateIamRoleAssociation.Ec2EnclaveCertificateIamRoleAssociation(this, "ZillaPlusEnclaveIamRoleAssociation", {
-        roleArn: iamRole.arn,
-        certificateArn: publicTlsCertificateKey.stringValue
-      });
     }
 
     let zillaPlusSecurityGroups;
