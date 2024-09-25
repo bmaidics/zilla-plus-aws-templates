@@ -128,7 +128,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       });
     }
 
-    let mskClientAuthentication;
+    let mskClientAuthentication = userVariables.mskClientAuthentication;
     if (userVariables.mskClientAuthentication === "Unknown") {
       mskClientAuthentication = mskCluster.bootstrapBrokersTls
         ? "mTLS"
