@@ -38,10 +38,11 @@ cp terraform.tfvars.example terraform.tfvars
 To get a list all MSK clusters run:
 
 ```bash
-aws kafka list-clusters --query 'ClusterInfoList[*].[ClusterName,ClusterArn]' --output table
+(echo -e "ClusterName\tClusterARN\tmTLS\tSASL/SCRAM\tUnauthorized"; aws kafka list-clusters --query 'ClusterInfoList[*].[ClusterName, ClusterArn, length(ClientAuthentication.Tls.CertificateAuthorityArnList) > `0`, ClientAuthentication.Sasl.Scram.Enabled, ClientAuthentication.Unauthenticated.Enabled]' --output json | jq -r '.[] | @tsv') | column -t
 ```
 
 Use the `ClusterName` of your desired MSK cluster for this variable.
+Set the desired client authentication method based on the MSK cluster setup, using `MSK_ACCESS_METHOD` environment variable.
 
 ### `public_tls_certificate_key`: Public TLS Certificate Key
 
