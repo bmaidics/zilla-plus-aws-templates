@@ -5,9 +5,11 @@ export class UserVariables extends Construct {
   mskClientAuthentication: "mTLS" | "SASL/SCRAM" | "Unauthorized" | "Unknown";
   publicCertificateAuthority: boolean = false;
   createZillaPlusRole: boolean = false;
+  publicTlsCertificateViaAcm: boolean = false;
   createZillaPlusSecurityGroup: boolean = false;
   sshKeyEnabled: boolean = false;
   cloudwatchDisabled: boolean = false;
+  zillaPlusAmi: string = "";
 
   constructor(scope: Construct, name: string) {
     super(scope, name);
@@ -28,8 +30,10 @@ export class UserVariables extends Construct {
     }
     this.publicCertificateAuthority = process.env.PUBLIC_CERTIFICATE_AUTHORITY === "true";
     this.createZillaPlusRole = process.env.CREATE_ZILLA_PLUS_ROLE !== "false";
+    this.publicTlsCertificateViaAcm = process.env.PUBLIC_TLS_CERTIFICATE_VIA_ACM === "true";
     this.createZillaPlusSecurityGroup = process.env.CREATE_ZILLA_PLUS_SECURITY_GROUP !== "false";
     this.sshKeyEnabled = process.env.SSH_KEY_ENABLED === "true";
     this.cloudwatchDisabled = process.env.CLOUDWATCH_DISABLED === "true";
+    this.zillaPlusAmi = process.env.ZILLA_PLUS_AMI ? process.env.ZILLA_PLUS_AMI : "";
   }
 }

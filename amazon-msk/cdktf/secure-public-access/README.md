@@ -38,10 +38,11 @@ cp terraform.tfvars.example terraform.tfvars
 To get a list all MSK clusters run:
 
 ```bash
-aws kafka list-clusters --query 'ClusterInfoList[*].[ClusterName,ClusterArn]' --output table
+aws kafka list-clusters --query 'ClusterInfoList[*].{Name:ClusterName, Arn:ClusterArn, Iam:ClientAuthentication.Iam.Enabled,  Scram:ClientAuthentication.Sasl.Scram.Enabled, Tls:ClientAuthentication.Tls.Enabled, mTls:ClientAuthentication.Tls.CertificateAuthorityArnList[*] | join(`,`, @) || None, Unauthenticated:ClientAuthentication.Unauthenticated.Enabled}' --output table
 ```
 
 Use the `ClusterName` of your desired MSK cluster for this variable.
+Set the desired client authentication method based on the MSK cluster setup, using `MSK_ACCESS_METHOD` environment variable.
 
 ### `public_tls_certificate_key`: Public TLS Certificate Key
 
@@ -118,13 +119,11 @@ cp .env.example .env
 
 ### MSK Client Authentication Method
 
-By default Zilla Plus will choose the most secure way configured for your MSK cluster. Order from most to least secure:
+To specify which client authentication method Zilla should use set the `MSK_ACCESS_METHOD` environment variable to the desired access method (mTLS, SASL/SCRAM or Unauthorized).
 
-1. mTLS
-1. SASL/SCRAM
-1. Unauthorized
+### Public TLS Certificate Via ACM
 
-If you want to specify which client authentication method Zilla should use set the `MSK_ACCESS_METHOD` environment variable to the desired access method (mTLS, SASL/SCRAM or Unauthorized).
+By default Zilla Plus will assume TLS certificate coming from Secrets Manager. You can use Zilla Plus with TLS certificate via ACM. To enable this set `PUBLIC_TLS_CERTIFICATE_VIA_ACM` to `true`.
 
 ### Custom Zilla Plus Role
 

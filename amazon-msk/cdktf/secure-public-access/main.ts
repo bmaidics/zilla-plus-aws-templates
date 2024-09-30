@@ -29,7 +29,6 @@ import { UserVariables } from "./variables";
 import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { ec2EnclaveCertificateIamRoleAssociation } from "./.gen/providers/awscc"
 import { AwsccProvider } from "./.gen/providers/awscc/provider";
-import { DataAwsccMskCluster } from "./.gen/providers/awscc/data-awscc-msk-cluster";
 
 
 export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
@@ -132,22 +131,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       });
     }
 
-    const awsccMskCluster = new DataAwsccMskCluster(this, "awsccMskCluster", {
-      id: mskCluster.id
-    })
-
-    const mtlsEnabled = Fn.lengthOf(awsccMskCluster.clientAuthentication.tls.certificateAuthorityArnList) > 0;
-
     let mskClientAuthentication = userVariables.mskClientAuthentication;
-    if (userVariables.mskClientAuthentication === "Unknown") {
-      mskClientAuthentication = mtlsEnabled
-        ? "mTLS"
-        : mskCluster.bootstrapBrokersSaslScram
-        ? "SASL/SCRAM"
-        : mskCluster.bootstrapBrokers
-        ? "Unauthorized"
-        : userVariables.mskClientAuthentication;
-    }
 
     const bootstrapServers =
       mskClientAuthentication === "mTLS"
@@ -204,7 +188,7 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       description: "TLS Certificate SecretsManager or CertificateManager ARN",
     });
 
-    const publicTlsCertificateViaAcm =  Fn.startswith(publicTlsCertificateKey.stringValue, "arn:aws:acm:");
+    const publicTlsCertificateViaAcm = userVariables.publicTlsCertificateViaAcm;
 
     let zillaPlusRole;
     if (!userVariables.createZillaPlusRole) {
@@ -309,6 +293,11 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
             "Resource": [ `arn:aws:iam::*:role/${iamRole.name}` ]
           }]
         );
+
+        new ec2EnclaveCertificateIamRoleAssociation.Ec2EnclaveCertificateIamRoleAssociation(this, "ZillaPlusEnclaveIamRoleAssociation", {
+          roleArn: iamRole.arn,
+          certificateArn: publicTlsCertificateKey.stringValue
+        });
       }
 
       new IamRolePolicy(this, "ZillaPlusRolePolicy", {
@@ -317,11 +306,6 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       });
 
       zillaPlusRole = iamInstanceProfile.name;
-
-      new ec2EnclaveCertificateIamRoleAssociation.Ec2EnclaveCertificateIamRoleAssociation(this, "ZillaPlusEnclaveIamRoleAssociation", {
-        roleArn: iamRole.arn,
-        certificateArn: publicTlsCertificateKey.stringValue
-      });
     }
 
     let zillaPlusSecurityGroups;
@@ -488,19 +472,24 @@ ${metricsSection}`;
       errorMessage: "must be a valid EC2 instance type.",
     });
 
-    const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
-      mostRecent: true,
-      filter: [
-        {
-          name: "product-code",
-          values: ["ca5mgk85pjtbyuhtfluzisgzy"],
-        },
-        {
-          name: "is-public",
-          values: ["true"],
-        },
-      ],
-    });
+    let imageId = userVariables.zillaPlusAmi;
+    if (!imageId)
+    {
+      const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
+        mostRecent: true,
+        filter: [
+          {
+            name: "product-code",
+            values: ["ca5mgk85pjtbyuhtfluzisgzy"],
+          },
+          {
+            name: "is-public",
+            values: ["true"],
+          },
+        ],
+      });
+      imageId = ami.imageId;
+    }
 
     const nlb = new Lb(this, `NetworkLoadBalancer-${id}`, {
       name: "network-load-balancer",
@@ -643,7 +632,7 @@ systemctl start zilla-plus
     `;
 
     const ZillaPlusLaunchTemplate = new launchTemplate.LaunchTemplate(this, "ZillaPlusLaunchTemplate", {
-      imageId: ami.imageId,
+      imageId: imageId,
       instanceType: instanceType.stringValue,
       networkInterfaces: [
         {
