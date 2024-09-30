@@ -119,13 +119,11 @@ cp .env.example .env
 
 ### MSK Client Authentication Method
 
-By default Zilla Plus will choose the most secure way configured for your MSK cluster. Order from most to least secure:
+To specify which client authentication method Zilla should use set the `MSK_ACCESS_METHOD` environment variable to the desired access method (mTLS, SASL/SCRAM or Unauthorized).
 
-1. mTLS
-1. SASL/SCRAM
-1. Unauthorized
+### Public TLS Certificate Via ACM
 
-If you want to specify which client authentication method Zilla should use set the `MSK_ACCESS_METHOD` environment variable to the desired access method (mTLS, SASL/SCRAM or Unauthorized).
+By default Zilla Plus will assume TLS certificate coming from Secret Manager. You can use Zilla Plus with TLS certificate via ACM. To enable this set `PUBLIC_TLS_CERTIFICATE_VIA_ACM` to `true`.
 
 ### Custom Zilla Plus Role
 
