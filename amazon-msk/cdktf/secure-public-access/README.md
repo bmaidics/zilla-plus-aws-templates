@@ -38,7 +38,7 @@ cp terraform.tfvars.example terraform.tfvars
 To get a list all MSK clusters run:
 
 ```bash
-(echo -e "ClusterName\tClusterARN\tmTLS\tSASL/SCRAM\tUnauthorized"; aws kafka list-clusters --query 'ClusterInfoList[*].[ClusterName, ClusterArn, length(ClientAuthentication.Tls.CertificateAuthorityArnList) > `0`, ClientAuthentication.Sasl.Scram.Enabled, ClientAuthentication.Unauthenticated.Enabled]' --output json | jq -r '.[] | @tsv') | column -t
+aws kafka list-clusters --query 'ClusterInfoList[*].{Name:ClusterName, Arn:ClusterArn, Iam:ClientAuthentication.Iam.Enabled,  Scram:ClientAuthentication.Sasl.Scram.Enabled, Tls:ClientAuthentication.Tls.Enabled, mTls:ClientAuthentication.Tls.CertificateAuthorityArnList[*] | join(`,`, @) || None, Unauthenticated:ClientAuthentication.Unauthenticated.Enabled}' --output table
 ```
 
 Use the `ClusterName` of your desired MSK cluster for this variable.
