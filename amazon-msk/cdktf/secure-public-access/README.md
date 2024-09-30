@@ -123,7 +123,7 @@ To specify which client authentication method Zilla should use set the `MSK_ACCE
 
 ### Public TLS Certificate Via ACM
 
-By default Zilla Plus will assume TLS certificate coming from Secret Manager. You can use Zilla Plus with TLS certificate via ACM. To enable this set `PUBLIC_TLS_CERTIFICATE_VIA_ACM` to `true`.
+By default Zilla Plus will assume TLS certificate coming from Secrets Manager. You can use Zilla Plus with TLS certificate via ACM. To enable this set `PUBLIC_TLS_CERTIFICATE_VIA_ACM` to `true`.
 
 ### Custom Zilla Plus Role
 
