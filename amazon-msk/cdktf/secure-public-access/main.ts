@@ -1,11 +1,9 @@
 import { Construct } from "constructs";
 import { App, TerraformStack, TerraformOutput, TerraformVariable, Fn, Op } from "cdktf";
 import instanceTypes from "./instance-types";
-import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
 import { Lb } from "@cdktf/provider-aws/lib/lb";
 import { LbListener } from "@cdktf/provider-aws/lib/lb-listener";
-import { dataAwsAmi, launchTemplate } from "@cdktf/provider-aws";
-import { autoscalingGroup } from "@cdktf/provider-aws";
+import { autoscalingGroup, dataAwsAmi, launchTemplate } from "@cdktf/provider-aws";
 import { LbTargetGroup } from "@cdktf/provider-aws/lib/lb-target-group";
 import { DataAwsAcmpcaCertificateAuthority } from "@cdktf/provider-aws/lib/data-aws-acmpca-certificate-authority";
 import { DataAwsSecretsmanagerSecretVersion } from "@cdktf/provider-aws/lib/data-aws-secretsmanager-secret-version";
@@ -28,13 +26,18 @@ import { DataAwsSubnets } from "@cdktf/provider-aws/lib/data-aws-subnets";
 import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile";
 
 import { UserVariables } from "./variables";
+import { AwsProvider } from "@cdktf/provider-aws/lib/provider";
+import { ec2EnclaveCertificateIamRoleAssociation } from "./.gen/providers/awscc"
+import { AwsccProvider } from "./.gen/providers/awscc/provider";
+
 
 export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
     super(scope, id);
     const userVariables = new UserVariables(this, "main");
 
-    const awsProvider = new AwsProvider(this, "AWS", {});
+    const awsProvider = new AwsProvider(this, "AWS", { });
+    new AwsccProvider(this, "AWSCC", { });
 
     const region = new DataAwsRegion(this, "CurrentRegion", {
       provider: awsProvider,
@@ -129,15 +132,6 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
     }
 
     let mskClientAuthentication = userVariables.mskClientAuthentication;
-    if (userVariables.mskClientAuthentication === "Unknown") {
-      mskClientAuthentication = mskCluster.bootstrapBrokersTls
-        ? "mTLS"
-        : mskCluster.bootstrapBrokersSaslScram
-        ? "SASL/SCRAM"
-        : mskCluster.bootstrapBrokers
-        ? "Unauthorized"
-        : userVariables.mskClientAuthentication;
-    }
 
     const bootstrapServers =
       mskClientAuthentication === "mTLS"
@@ -188,6 +182,13 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       tlsClientSigners = `      signers:
 - ${mskCertificateAuthority}`;
     }
+
+    const publicTlsCertificateKey = new TerraformVariable(this, "public_tls_certificate_key", {
+      type: "string",
+      description: "TLS Certificate SecretsManager or CertificateManager ARN",
+    });
+
+    const publicTlsCertificateViaAcm = userVariables.publicTlsCertificateViaAcm;
 
     let zillaPlusRole;
     if (!userVariables.createZillaPlusRole) {
@@ -259,19 +260,49 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
         role: iamRole.name,
       });
 
+      const iamPolicy = {
+        Version: "2012-10-17",
+        Statement: [
+          {
+            Sid: "secretStatement",
+            Effect: "Allow",
+            Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+            Resource: ["arn:aws:secretsmanager:*:*:secret:*"],
+          },
+        ],
+      };
+
+      if (publicTlsCertificateViaAcm) {
+        iamPolicy.Statement = iamPolicy.Statement.concat([
+          {
+            "Sid": "s3Statement",
+            "Effect": "Allow",
+            "Action": [ "s3:GetObject" ],
+            "Resource": ["arn:aws:s3:::*/*"]
+          },
+          {
+            "Sid": "kmsDecryptStatement",
+            "Effect": "Allow",
+            "Action": [ "kms:Decrypt" ],
+            "Resource": ["arn:aws:kms:*:*:key/*"]
+          },
+          {
+            "Sid": "getRoleStatement",
+            "Effect": "Allow",
+            "Action": [ "iam:GetRole" ],
+            "Resource": [ `arn:aws:iam::*:role/${iamRole.name}` ]
+          }]
+        );
+
+        new ec2EnclaveCertificateIamRoleAssociation.Ec2EnclaveCertificateIamRoleAssociation(this, "ZillaPlusEnclaveIamRoleAssociation", {
+          roleArn: iamRole.arn,
+          certificateArn: publicTlsCertificateKey.stringValue
+        });
+      }
+
       new IamRolePolicy(this, "ZillaPlusRolePolicy", {
         role: iamRole.name,
-        policy: JSON.stringify({
-          Version: "2012-10-17",
-          Statement: [
-            {
-              Sid: "VisualEditor0",
-              Effect: "Allow",
-              Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
-              Resource: ["arn:aws:secretsmanager:*:*:secret:*"],
-            },
-          ],
-        }),
+        policy: JSON.stringify(iamPolicy),
       });
 
       zillaPlusRole = iamInstanceProfile.name;
@@ -329,14 +360,12 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       description: "The public wildcard DNS pattern for bootstrap servers to be used by Kafka clients",
     });
 
-    const publicTlsCertificateKey = new TerraformVariable(this, "public_tls_certificate_key", {
-      type: "string",
-      description: "TLS Certificate Private Key Secret ARN",
-    });
-    // Validate that the Certificate Key exists
-    new DataAwsSecretsmanagerSecretVersion(this, "publicTlsCertificate", {
-      secretId: publicTlsCertificateKey.stringValue,
-    });
+    if (!publicTlsCertificateViaAcm) {
+      // Validate that the Certificate Key exists
+      new DataAwsSecretsmanagerSecretVersion(this, "publicTlsCertificate", {
+        secretId: publicTlsCertificateKey.stringValue,
+      });
+    }
 
     let keyName = "";
 
@@ -348,8 +377,33 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
       keyName = keyNameVar.stringValue;
     }
 
+    let acmYamlContent = "";
+    let enclavesAcmServiceStart = "";
     let zillaTelemetryContent = "";
     let bindingTelemetryContent = "";
+
+    if (publicTlsCertificateViaAcm) {
+      acmYamlContent = `
+enclave:
+  cpu_count: 2
+  memory_mib: 256
+
+options:
+  sync_interval_secs: 600
+
+tokens:
+  - label: acm-token-example
+    source:
+      Acm:
+        certificate_arn: '${publicTlsCertificateKey}'
+    refresh_interval_secs: 43200
+    pin: 1234
+`
+      enclavesAcmServiceStart = `
+systemctl enable nitro-enclaves-acm.service
+systemctl start nitro-enclaves-acm.service
+`
+    }
 
     if (!userVariables.cloudwatchDisabled) {
       const defaultLogGroupName = `${id}-group`;
@@ -410,7 +464,7 @@ ${metricsSection}`;
 
     const instanceType = new TerraformVariable(this, "zilla_plus_instance_type", {
       type: "string",
-      default: "t3.small",
+      default: publicTlsCertificateViaAcm ? "c6i.xlarge" : "t3.small",
       description: "Zilla Plus EC2 instance type",
     });
     instanceType.addValidation({
@@ -418,19 +472,24 @@ ${metricsSection}`;
       errorMessage: "must be a valid EC2 instance type.",
     });
 
-    const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
-      mostRecent: true,
-      filter: [
-        {
-          name: "product-code",
-          values: ["ca5mgk85pjtbyuhtfluzisgzy"],
-        },
-        {
-          name: "is-public",
-          values: ["true"],
-        },
-      ],
-    });
+    let imageId = userVariables.zillaPlusAmi;
+    if (!imageId)
+    {
+      const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
+        mostRecent: true,
+        filter: [
+          {
+            name: "product-code",
+            values: ["ca5mgk85pjtbyuhtfluzisgzy"],
+          },
+          {
+            name: "is-public",
+            values: ["true"],
+          },
+        ],
+      });
+      imageId = ami.imageId;
+    }
 
     const nlb = new Lb(this, `NetworkLoadBalancer-${id}`, {
       name: "network-load-balancer",
@@ -467,7 +526,7 @@ ${metricsSection}`;
 name: public
 vaults:
   secure:
-    type: aws
+    type: ${publicTlsCertificateViaAcm ? "aws-acm" : "aws-secrets"}
 ${zillaTelemetryContent}
 bindings:
   tcp_server:
@@ -540,6 +599,10 @@ cat <<EOF > /etc/zilla/zilla.yaml
 ${zillaYamlContent}
 EOF
 
+cat <<EOF > /etc/nitro_enclaves/acm.yaml
+${acmYamlContent}
+EOF
+
 chown ec2-user:ec2-user /etc/zilla/zilla.yaml
 
 mkdir /etc/cfn
@@ -562,13 +625,14 @@ systemctl enable cfn-hup
 systemctl start cfn-hup
 systemctl enable amazon-ssm-agent
 systemctl start amazon-ssm-agent
+${enclavesAcmServiceStart}
 systemctl enable zilla-plus
 systemctl start zilla-plus
 
     `;
 
     const ZillaPlusLaunchTemplate = new launchTemplate.LaunchTemplate(this, "ZillaPlusLaunchTemplate", {
-      imageId: ami.imageId,
+      imageId: imageId,
       instanceType: instanceType.stringValue,
       networkInterfaces: [
         {
@@ -579,6 +643,9 @@ systemctl start zilla-plus
       ],
       iamInstanceProfile: {
         name: zillaPlusRole,
+      },
+      enclaveOptions: {
+        enabled: publicTlsCertificateViaAcm
       },
       keyName: keyName,
       userData: Fn.base64encode(userData),

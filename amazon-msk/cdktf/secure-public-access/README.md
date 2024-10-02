@@ -38,14 +38,23 @@ cp terraform.tfvars.example terraform.tfvars
 To get a list all MSK clusters run:
 
 ```bash
-aws kafka list-clusters --query 'ClusterInfoList[*].[ClusterName,ClusterArn]' --output table
+aws kafka list-clusters --query 'ClusterInfoList[*].{Name:ClusterName, Arn:ClusterArn, Iam:ClientAuthentication.Iam.Enabled,  Scram:ClientAuthentication.Sasl.Scram.Enabled, Tls:ClientAuthentication.Tls.Enabled, mTls:ClientAuthentication.Tls.CertificateAuthorityArnList[*] | join(`,`, @) || None, Unauthenticated:ClientAuthentication.Unauthenticated.Enabled}' --output table
 ```
 
 Use the `ClusterName` of your desired MSK cluster for this variable.
+Set the desired client authentication method based on the MSK cluster setup, using `MSK_ACCESS_METHOD` environment variable.
 
 ### `public_tls_certificate_key`: Public TLS Certificate Key
 
-You need the ARN of the Secrets Manager secret that contains your public TLS certificate private key.
+You need the ARN of either the Certificte Manager certificate or the Secrets Manager secret that contains your public TLS certificate private key.
+
+List all certificates in Certificate Manager:
+
+```bash
+aws acm list-certificates --certificate-statuses ISSUED --query 'CertificateSummaryList[*].[DomainName,CertificateArn]' --output table
+```
+
+Find and note down the ARN of your public TLS certificate.
 
 List all secrets in Secrets Manager:
 
@@ -58,6 +67,7 @@ Find and note down the ARN of the secret that contains your public TLS certifica
 ### `public_wildcard_dns`: Public Wildcard DNS
 
 This variable defines the public wildcard DNS pattern for bootstrap servers to be used by Kafka clients.
+It should match the wildcard DNS of the public TLS certificate.
 
 ### `zilla_plus_capacity`: Zilla Plus Capacity
 
@@ -109,13 +119,11 @@ cp .env.example .env
 
 ### MSK Client Authentication Method
 
-By default Zilla Plus will choose the most secure way configured for your MSK cluster. Order from most to least secure:
+To specify which client authentication method Zilla should use set the `MSK_ACCESS_METHOD` environment variable to the desired access method (mTLS, SASL/SCRAM or Unauthorized).
 
-1. mTLS
-1. SASL/SCRAM
-1. Unauthorized
+### Public TLS Certificate Via ACM
 
-If you want to specify which client authentication method Zilla should use set the `MSK_ACCESS_METHOD` environment variable to the desired access method (mTLS, SASL/SCRAM or Unauthorized).
+By default Zilla Plus will assume TLS certificate coming from Secrets Manager. You can use Zilla Plus with TLS certificate via ACM. To enable this set `PUBLIC_TLS_CERTIFICATE_VIA_ACM` to `true`.
 
 ### Custom Zilla Plus Role
 
@@ -202,6 +210,16 @@ Install the node.js dependencies specified in the `package.json` file:
 npm install
 ```
 
+### Generate external Terraform Provider constructs
+
+Navigate to the CDKTF project directory.
+
+Run the following command to generate the constructs for external providers:
+
+```bash
+npm run get
+```
+
 ### Synthesize the Terraform Configuration
 
 First, you need to synthesize the Terraform configuration from the CDKTF code.
@@ -240,7 +258,11 @@ terraform -chdir=cdktf.out/stacks/secure-public-access apply
 
 ### Configure Global DNS
 
-This ensures that any new Kafka brokers added to the cluster can still be reached via the Zilla proxy. When using a wildcard DNS name for your own domain, such as `*.example.aklivity.io` then the DNS entries are setup in your DNS provider. After deploying the stack, check the outputs, where you can find the NetworkLoadBalancer DNS. `NetworkLoadBalancerOutput = "network-load-balancer-******.elb.us-east-1.amazonaws.com"` Lookup the IP addresses of your load balancer using `nslookup` and the DNS of the NetworkLoadBalancer.
+This ensures that any new Kafka brokers added to the cluster can still be reached via the Zilla proxy. When using a wildcard DNS name for your own domain, such as `*.example.aklivity.io` then the DNS entries are setup in your DNS provider. After deploying the stack, check the outputs, where you can find the NetworkLoadBalancer DNS.
+```
+NetworkLoadBalancerOutput = "network-load-balancer-******.elb.us-east-1.amazonaws.com"
+```
+Lookup the IP addresses of your load balancer using `nslookup` and the DNS of the NetworkLoadBalancer.
 
 ```bash
 nslookup network-load-balancer-86334a80cbd16ec2.elb.us-east-2.amazonaws.com
