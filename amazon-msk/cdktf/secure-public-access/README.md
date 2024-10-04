@@ -121,7 +121,7 @@ cp .env.example .env
 
 To specify which client authentication method Zilla should use set the `MSK_ACCESS_METHOD` environment variable to the desired access method (mTLS, SASL/SCRAM or Unauthorized).
 
-### Public TLS Certificate Via ACM
+### Public TLS Certificate via AWS Certificate Manager for Nitro Enclaves
 
 By default Zilla Plus will assume TLS certificate coming from Secrets Manager. You can use Zilla Plus with TLS certificate via ACM. To enable this set `PUBLIC_TLS_CERTIFICATE_VIA_ACM` to `true`.
 
