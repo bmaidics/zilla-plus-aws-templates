@@ -1,6 +1,6 @@
-msk_cluster_name="<your msk cluster name>"
-msk_access_credentials_name="<your msk access credentials name>"
-public_tls_certificate_key="<your public tls certificate key ARN>"
+msk_cluster_name="my-msk-cluster"
+msk_access_credentials_name="AmazonMSK_alice"
+public_tls_certificate_key="arn:aws:secretsmanager:us-east-1:445711703002:secret:wildcard.example.aklivity.io-8-kq3J3T"
 
 ## optional
 #kafka_topic_mqtt_sessions="<your custom sessions topic name>"

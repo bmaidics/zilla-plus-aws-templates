@@ -519,10 +519,6 @@ systemctl start nitro-enclaves-acm.service
     const yamlTemplate: string = fs.readFileSync('zilla.mustache', 'utf8');
     const renderedYaml: string = Mustache.render(yamlTemplate, data);
 
-    new TerraformOutput(this, "renderedYaml", {
-      value: renderedYaml,
-    });
-
     const cfnHupConfContent = `
 [main]
 stack=${id}
