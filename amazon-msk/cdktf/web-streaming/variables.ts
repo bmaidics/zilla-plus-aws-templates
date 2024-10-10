@@ -8,7 +8,7 @@ export class UserVariables extends Construct {
   createZillaPlusSecurityGroup: boolean = false;
   sshKeyEnabled: boolean = false;
   cloudwatchDisabled: boolean = false;
-  glueRegistryEnabled: boolean = true;
+  glueRegistryEnabled: boolean = false;
   kafkaTopicCreationDisabled: boolean = false;
 
   constructor(scope: Construct, name: string) {
