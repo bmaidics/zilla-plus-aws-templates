@@ -43,6 +43,10 @@ interface TemplateData {
   kafkaBootstrapServers?: string;
   kafkaSaslUsername?: string;
   kafkaSaslPassword?: string;
+  jwtEnabled?: boolean;
+  issuer?: string;
+  audience?: string;
+  keysUrl?: string;
 }
 
 export class ZillaPlusWebStreamingStack extends TerraformStack {
@@ -330,7 +334,29 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
     const data: TemplateData = {
       name: 'web',
       cloudwatchDisabled: userVars.cloudwatchDisabled,
-      glueEnabled: userVars.glueRegistryEnabled
+      glueEnabled: userVars.glueRegistryEnabled,
+      jwtEnabled: userVars.jwtEnabled
+    }
+
+    if (userVars.jwtEnabled) {
+      const issuer = new TerraformVariable(this, "jwt_issuer", {
+        type: "string",
+        description: "A string that identifies the principal that issued the JWT",
+      });
+
+      const audience = new TerraformVariable(this, "jwt_audience", {
+        type: "string",
+        description: "A string that identifies the recipients that the JWT is intended fo",
+      });
+
+      const keysUrl = new TerraformVariable(this, "jwt_keys_url", {
+        type: "string",
+        description: "The JSON Web Key Set (JWKS) URL: set of keys containing the public keys used to verify any JSON Web Token (JWT)",
+      });
+
+      data.issuer = issuer.stringValue;
+      data.audience = audience.stringValue;
+      data.keysUrl = keysUrl.stringValue;
     }
 
     if (!userVars.cloudwatchDisabled) {
