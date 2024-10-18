@@ -33,9 +33,7 @@ interface TemplateData {
   name: string;
   glueEnabled: boolean;
   glueRegistry?: string;
-  cloudwatchDisabled?: boolean;
-  cloudWatchLogsGroup?: string;
-  cloudWatchMetricsNamespace?: string;
+  cloudwatch?: object;
   publicPort?: number;
   publicTlsCertificateKey?: string;
   path?: string;
@@ -329,7 +327,6 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
 
     const data: TemplateData = {
       name: 'web',
-      cloudwatchDisabled: userVars.cloudwatchDisabled,
       glueEnabled: userVars.glueRegistryEnabled
     }
 
@@ -353,8 +350,14 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
         name: cloudWatchLogsGroup.stringValue,
       });
 
-      data.cloudWatchLogsGroup = cloudWatchLogsGroup.stringValue;
-      data.cloudWatchMetricsNamespace = cloudWatchMetricsNamespace.stringValue;
+      data.cloudwatch = {
+        logs: {
+          group: cloudWatchLogsGroup.stringValue
+        },
+        metrics: {
+          namespace: cloudWatchMetricsNamespace.stringValue
+        }
+      };
     }
 
     if (userVars.glueRegistryEnabled) {
@@ -423,7 +426,7 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
     data.path = path;
     data.topic = topic.stringValue;
 
-    const yamlTemplate: string = fs.readFileSync('zilla.mustache', 'utf8');
+    const yamlTemplate: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
     const renderedYaml: string = Mustache.render(yamlTemplate, data);
 
     const cfnHupConfContent = `

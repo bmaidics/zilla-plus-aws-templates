@@ -31,9 +31,7 @@ import fs =  require("fs");
 
 interface TemplateData {
   name: string;
-  cloudwatchDisabled?: boolean;
-  cloudWatchLogsGroup?: string;
-  cloudWatchMetricsNamespace?: string;
+  cloudwatch?: object;
   publicPort?: number;
   publicTlsCertificateKey?: string;
   kafkaTopicMqttSessions?: string;
@@ -334,7 +332,6 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
 
     const data: TemplateData = {
       name: 'iot',
-      cloudwatchDisabled: userVariables.cloudwatchDisabled
     }
 
     if (!userVariables.cloudwatchDisabled) {
@@ -357,8 +354,14 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
         name: cloudWatchLogsGroup.stringValue,
       });
 
-      data.cloudWatchLogsGroup = cloudWatchLogsGroup.stringValue;
-      data.cloudWatchMetricsNamespace = cloudWatchMetricsNamespace.stringValue;
+      data.cloudwatch = {
+        logs: {
+          group: cloudWatchLogsGroup.stringValue
+        },
+        metrics: {
+          namespace: cloudWatchMetricsNamespace.stringValue
+        } 
+      };
     }
 
     const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
@@ -419,7 +422,7 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
     data.kafkaTopicMqttMessages = kafkaTopicMqttMessages.stringValue;
     data.kafkaTopicMqttRetained = kafkaTopicMqttRetained.stringValue;
 
-    const yamlTemplate: string = fs.readFileSync('zilla.mustache', 'utf8');
+    const yamlTemplate: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
     const renderedYaml: string = Mustache.render(yamlTemplate, data);
 
     const cfnHupConfContent = `
