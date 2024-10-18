@@ -36,9 +36,7 @@ import fs =  require("fs");
 interface TemplateData {
   name: string;
   useAcm: boolean;
-  cloudwatchDisabled?: boolean;
-  cloudWatchLogsGroup?: string;
-  cloudWatchMetricsNamespace?: string;
+  cloudwatch?: object;
   publicPort?: number;
   publicTlsCertificateKey?: string;
   mTLS?: boolean;
@@ -173,7 +171,6 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
     const data: TemplateData = {
       name: 'public',
       useAcm: publicTlsCertificateViaAcm,
-      cloudwatchDisabled: userVariables.cloudwatchDisabled,
       mTLS: mTLSEnabled
     };
 
@@ -445,8 +442,15 @@ systemctl start nitro-enclaves-acm.service
         name: cloudWatchLogsGroup.stringValue,
       });
 
-      data.cloudWatchLogsGroup = cloudWatchLogsGroup.stringValue;
-      data.cloudWatchMetricsNamespace = cloudWatchMetricsNamespace.stringValue;
+
+      data.cloudwatch = {
+        logs: {
+          group: cloudWatchLogsGroup.stringValue
+        },
+        metrics: {
+          namespace: cloudWatchMetricsNamespace.stringValue
+        } 
+      };
     }
 
     const instanceType = new TerraformVariable(this, "zilla_plus_instance_type", {
@@ -516,7 +520,7 @@ systemctl start nitro-enclaves-acm.service
     data.internalHost = internalHost;
     data.mskPort = mskPort;
     data.mskWildcardDNS = mskWildcardDNS;
-    const yamlTemplate: string = fs.readFileSync('zilla.mustache', 'utf8');
+    const yamlTemplate: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
     const renderedYaml: string = Mustache.render(yamlTemplate, data);
 
     const cfnHupConfContent = `

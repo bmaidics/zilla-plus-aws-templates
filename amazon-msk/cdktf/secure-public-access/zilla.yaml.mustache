@@ -2,7 +2,6 @@ name: {{name}}
 vaults:
   secure:
     type: {{#useAcm}}aws-acm{{/useAcm}}{{^useAcm}}aws-secrets{{/useAcm}}
-{{^cloudwatchDisabled}}
 telemetry:
   metrics:
     - stream.active.received
@@ -18,15 +17,16 @@ telemetry:
   exporters:
     stdout_logs_exporter:
       type: stdout
+{{#cloudwatch}}
     aws0:
       type: aws-cloudwatch
       options:
         logs:
-          group: {{cloudWatchLogsGroup}}
+          group: {{cloudwatch.logs.group}}
           stream: events
         metrics:
-          namespace: {{cloudWatchMetricsNamespace}}
-{{/cloudwatchDisabled}}
+          namespace: {{cloudwatch.metrics.namespace}}
+{{/cloudwatch}}
 bindings:
   tcp_server:
     type: tcp
@@ -34,11 +34,9 @@ bindings:
     options:
       host: 0.0.0.0
       port: {{publicPort}}
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     exit: tls_server
   tls_server:
     type: tls
@@ -51,11 +49,9 @@ bindings:
       trust:
         - {{publicCertificateAuthority}}
       {{/mTLS}}
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     routes:
       - exit: kafka_proxy
         when:
@@ -70,11 +66,9 @@ bindings:
       internal:
         host: '{{internalHost}}'
         port: {{mskPort}}
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     exit: tls_client
   tls_client:
     type: tls
@@ -86,11 +80,9 @@ bindings:
         - {{mskCertificateAuthority}}
       {{/mTLS}}
       trustcacerts: true
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     exit: tcp_client
   tcp_client:
     type: tcp
@@ -98,11 +90,9 @@ bindings:
     options:
       host: '*'
       port: {{mskPort}}
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     routes:
       - when:
         - authority: '{{mskWildcardDNS}}'

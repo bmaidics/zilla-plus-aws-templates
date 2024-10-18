@@ -18,7 +18,6 @@ catalogs:
     options:
       registry: {{glueRegistry}}
 {{/glueEnabled}}
-{{^cloudwatchDisabled}}
 telemetry:
   metrics:
     - stream.active.received
@@ -34,15 +33,16 @@ telemetry:
   exporters:
     stdout_logs_exporter:
       type: stdout
+{{#cloudwatch}}
     aws0:
       type: aws-cloudwatch
       options:
         logs:
-          group: {{cloudWatchLogsGroup}}
+          group: {{cloudwatch.logs.group}}
           stream: events
         metrics:
-          namespace: {{cloudWatchMetricsNamespace}}
-{{/cloudwatchDisabled}}
+          namespace: {{cloudwatch.metrics.namespace}}
+{{/cloudwatch}}
 bindings:
   tcp_server:
     type: tcp
@@ -50,11 +50,9 @@ bindings:
     options:
       host: 0.0.0.0
       port: {{publicPort}}
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     exit: tls_server
   tls_server:
     type: tls
@@ -63,20 +61,16 @@ bindings:
     options:
       keys:
         - {{publicTlsCertificateKey}}
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     exit: http_server
   http_server:
     type: http
     kind: server
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     options:
       authorization:
         auth_jwt:
@@ -107,20 +101,16 @@ bindings:
   sse_server:
     type: sse
     kind: server
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     exit: sse_kafka_mapping
   sse_kafka_mapping:
     type: sse-kafka
     kind: proxy
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     routes:
       - when:
           - path: /streams{{{path}}}
@@ -130,11 +120,9 @@ bindings:
   http_kafka_mapping:
     type: http-kafka
     kind: proxy
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     routes:
       - when:
           - method: POST
@@ -193,11 +181,9 @@ bindings:
                 - strategy: topic
                   version: latest
 {{/glueEnabled}}
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     exit: kafka_cache_server
   kafka_cache_server:
     type: kafka
@@ -216,11 +202,9 @@ bindings:
                 - strategy: topic
                   version: latest
 {{/glueEnabled}}
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     exit: kafka_client
   kafka_client:
     type: kafka
@@ -231,27 +215,21 @@ bindings:
         mechanism: scram-sha-512
         username: '{{kafkaSaslUsername}}'
         password: '{{kafkaSaslPassword}}'
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     exit: tls_client
   tls_client:
     type: tls
     kind: client
     vault: secure
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
     exit: tcp_client
   tcp_client:
     type: tcp
     kind: client
-{{^cloudwatchDisabled}}
     telemetry:
       metrics:
         - stream.*
-{{/cloudwatchDisabled}}
