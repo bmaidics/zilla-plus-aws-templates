@@ -25,8 +25,19 @@ import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile
 import { IamRole } from "@cdktf/provider-aws/lib/iam-role";
 import { IamRolePolicy } from "@cdktf/provider-aws/lib/iam-role-policy";
 import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
-
 import { UserVariables } from "./variables";
+import Mustache = require("mustache");
+import fs =  require("fs");
+
+interface TemplateData {
+  name: string;
+  glue?: object;
+  cloudwatch?: object;
+  path?: string;
+  topic?: string;
+  public?: object;
+  kafka?: object;
+}
 
 export class ZillaPlusWebStreamingStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
@@ -310,8 +321,9 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
       errorMessage: "must be a valid EC2 instance type.",
     });
 
-    let zillaTelemetryContent = "";
-    let bindingTelemetryContent = "";
+    const data: TemplateData = {
+      name: 'web',
+    }
 
     if (!userVars.cloudwatchDisabled) {
       const defaultLogGroupName = `${id}-group`;
@@ -333,44 +345,15 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
         name: cloudWatchLogsGroup.stringValue,
       });
 
-      const logsSection = `
-        logs:
-          group: ${cloudWatchLogsGroup.stringValue}
-          stream: events`;
-
-      const metricsSection = `
-        metrics:
-          namespace: ${cloudWatchMetricsNamespace.stringValue}`;
-
-      zillaTelemetryContent = `telemetry:
-  metrics:
-    - stream.active.received
-    - stream.active.sent
-    - stream.opens.received
-    - stream.opens.sent
-    - stream.data.received
-    - stream.data.sent
-    - stream.errors.received
-    - stream.errors.sent
-    - stream.closes.received
-    - stream.closes.sent
-  exporters:
-    stdout_logs_exporter:
-      type: stdout
-    aws0:
-      type: aws-cloudwatch
-      options:
-${logsSection}
-${metricsSection}`;
-
-      bindingTelemetryContent = `    telemetry:
-      metrics:
-        - stream.*`;
+      data.cloudwatch = {
+        logs: {
+          group: cloudWatchLogsGroup.stringValue
+        },
+        metrics: {
+          namespace: cloudWatchMetricsNamespace.stringValue
+        }
+      };
     }
-
-    let glueContent = "";
-    let kafkaCacheClientGlueContent = "";
-    let kafkaCacheServerGlueContent = "";
 
     if (userVars.glueRegistryEnabled) {
       const glueRegistry = new TerraformVariable(this, "glue_registry", {
@@ -378,32 +361,9 @@ ${metricsSection}`;
         description: "The Glue Registry to fetch the schemas from",
       });
 
-      glueContent = `catalogs:
-  glue_catalog:
-    type: aws-glue
-    options:
-      registry: ${glueRegistry.stringValue}`;
-
-      kafkaCacheClientGlueContent = `    options:
-      topics:
-        - name: ${topic}
-          value:
-            model: avro
-            view: json
-            catalog:
-              glue_catalog:
-                - strategy: topic
-                  version: latest`;
-
-      kafkaCacheServerGlueContent = `      topics:
-        - name: ${topic}
-          value:
-            model: avro
-            view: json
-            catalog:
-              glue_catalog:
-                - strategy: topic
-                  version: latest`;
+      data.glue = {
+        registry: glueRegistry.stringValue
+      }
     }
 
     const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
@@ -455,145 +415,22 @@ ${metricsSection}`;
 
     const kafkaBootstrapServers = `['${Fn.join(`','`, Fn.split(",", mskCluster.bootstrapBrokersSaslScram))}']`;
 
-    const zillaYamlContent = `
-name: public
-${glueContent}
-${zillaTelemetryContent}
-vaults:
-  secure:
-    type: aws
-bindings:
-  tcp_server:
-    type: tcp
-    kind: server
-${bindingTelemetryContent}
-    options:
-      host: 0.0.0.0
-      port: ${publicTcpPort}
-    exit: tls_server
-  tls_server:
-    type: tls
-    kind: server
-    vault: secure
-${bindingTelemetryContent}
-    options:
-      keys:
-      - ${publicTlsCertificateKey.stringValue}
-    exit: north_http_server
-  north_http_server:
-    type: http
-    kind: server
-${bindingTelemetryContent}
-    routes:
-      - when:
-          - headers:
-              :path: /streams${path}
-        exit: north_sse_server
-      - when:
-          - headers:
-              :path: ${path}/*
-          - headers:
-              :path: ${path}
-        exit: north_http_kafka_mapping
-  north_sse_server:
-    type: sse
-    kind: server
-${bindingTelemetryContent}
-    exit: north_sse_kafka_mapping
-  north_sse_kafka_mapping:
-    type: sse-kafka
-    kind: proxy
-${bindingTelemetryContent}
-    routes:
-      - when:
-          - path: /streams${path}
-        exit: kafka_cache_client
-        with:
-          topic: ${topic}
-  north_http_kafka_mapping:
-    type: http-kafka
-    kind: proxy
-${bindingTelemetryContent}
-    routes:
-      - when:
-          - method: POST
-            path: ${path}
-        exit: kafka_cache_client
-        with:
-          capability: produce
-          topic: ${topic.stringValue}
-          key: \${idempotencyKey}
-      - when:
-          - method: PUT
-            path: ${path}/{id}
-        exit: kafka_cache_client
-        with:
-          capability: produce
-          topic: ${topic.stringValue}
-          key: \${params.id}
-      - when:
-          - method: DELETE
-            path: ${path}/{id}
-        exit: kafka_cache_client
-        with:
-          capability: produce
-          topic: ${topic.stringValue}
-          key: \${params.id}
-      - when:
-          - method: GET
-            path: ${path}
-        exit: kafka_cache_client
-        with:
-          capability: fetch
-          topic: ${topic.stringValue}
-          merge:
-            content-type: application/json
-      - when:
-          - method: GET
-            path: ${path}/{id}
-        exit: kafka_cache_client
-        with:
-          capability: fetch
-          topic: ${topic.stringValue}
-          filters:
-            - key: \${params.id}
-  kafka_cache_client:
-    type: kafka
-    kind: cache_client
-${kafkaCacheClientGlueContent}
-${bindingTelemetryContent}
-    exit: kafka_cache_server
-  kafka_cache_server:
-    type: kafka
-    kind: cache_server
-${bindingTelemetryContent}
-    options:
-      bootstrap:
-        - ${topic.stringValue}
-${kafkaCacheServerGlueContent}
-    exit: kafka_client
-  kafka_client:
-    type: kafka
-    kind: client
-    options:
-      servers: ${kafkaBootstrapServers}
-      sasl:
-        mechanism: scram-sha-512
-        username: '${kafkaSaslUsername}'
-        password: '${kafkaSaslPassword}'
-${bindingTelemetryContent}
-    exit: tls_client
-  tls_client:
-    type: tls
-    kind: client
-    vault: secure
-${bindingTelemetryContent}
-    exit: tcp_client
-  tcp_client:
-    type: tcp
-    kind: client
-${bindingTelemetryContent}
-`;
+    data.kafka = {
+      bootstrapServers: kafkaBootstrapServers,
+      sasl : {
+        username: kafkaSaslUsername,
+        password: kafkaSaslPassword
+      }
+    }
+    data.public = {
+      port: publicTcpPort.value,
+      tlsCertificateKey: publicTlsCertificateKey.stringValue
+    }
+    data.path = path;
+    data.topic = topic.stringValue;
+
+    const yamlTemplate: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
+    const renderedYaml: string = Mustache.render(yamlTemplate, data);
 
     const cfnHupConfContent = `
 [main]
@@ -634,7 +471,7 @@ EOF
     const userData = `#!/bin/bash -xe
 yum update -y aws-cfn-bootstrap
 cat <<'END_HELP' > /etc/zilla/zilla.yaml
-${zillaYamlContent}
+${renderedYaml}
 END_HELP
 
 chown ec2-user:ec2-user /etc/zilla/zilla.yaml

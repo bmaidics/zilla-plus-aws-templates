@@ -25,8 +25,18 @@ import { IamInstanceProfile } from "@cdktf/provider-aws/lib/iam-instance-profile
 import { IamRole } from "@cdktf/provider-aws/lib/iam-role";
 import { IamRolePolicy } from "@cdktf/provider-aws/lib/iam-role-policy";
 import { SecurityGroup } from "@cdktf/provider-aws/lib/security-group";
-
 import { UserVariables } from "./variables";
+import Mustache = require("mustache");
+import fs =  require("fs");
+
+interface TemplateData {
+  name: string;
+  cloudwatch?: object;
+  public?: object;
+  topics?: object;
+  kafka?: object;
+
+}
 
 export class ZillaPlusIotAndControlStack extends TerraformStack {
   constructor(scope: Construct, id: string) {
@@ -316,8 +326,9 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
       errorMessage: "must be a valid EC2 instance type.",
     });
 
-    let zillaTelemetryContent = "";
-    let bindingTelemetryContent = "";
+    const data: TemplateData = {
+      name: 'iot',
+    }
 
     if (!userVariables.cloudwatchDisabled) {
       const defaultLogGroupName = `${id}-group`;
@@ -339,41 +350,14 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
         name: cloudWatchLogsGroup.stringValue,
       });
 
-      const logsSection = `
-        logs:
-          group: ${cloudWatchLogsGroup.stringValue}
-          stream: events`;
-
-      const metricsSection = `
-        metrics:
-          namespace: ${cloudWatchMetricsNamespace.stringValue}`;
-
-      zillaTelemetryContent = `
-telemetry:
-  metrics:
-    - stream.active.received
-    - stream.active.sent
-    - stream.opens.received
-    - stream.opens.sent
-    - stream.data.received
-    - stream.data.sent
-    - stream.errors.received
-    - stream.errors.sent
-    - stream.closes.received
-    - stream.closes.sent
-  exporters:
-    stdout_logs_exporter:
-      type: stdout
-    aws0:
-      type: aws-cloudwatch
-      options:
-${logsSection}
-${metricsSection}`;
-
-      bindingTelemetryContent = `
-    telemetry:
-      metrics:
-        - stream.*`;
+      data.cloudwatch = {
+        logs: {
+          group: cloudWatchLogsGroup.stringValue
+        },
+        metrics: {
+          namespace: cloudWatchMetricsNamespace.stringValue
+        } 
+      };
     }
 
     const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
@@ -425,81 +409,25 @@ ${metricsSection}`;
 
     const kafkaBootstrapServers = `['${Fn.join(`','`, Fn.split(",", mskCluster.bootstrapBrokersSaslScram))}']`;
 
-    const zillaYamlContent = `
-name: public
-${zillaTelemetryContent}
-vaults:
-  secure:
-    type: aws
-bindings:
-  tcp_server:
-    type: tcp
-    kind: server
-${bindingTelemetryContent}
-    options:
-      host: 0.0.0.0
-      port: ${publicTcpPort}
-    exit: tls_server
-  tls_server:
-    type: tls
-    kind: server
-    vault: secure
-${bindingTelemetryContent}
-    options:
-      keys:
-      - ${publicTlsCertificateKey.stringValue}
-    exit: mqtt_server
-  mqtt_server:
-    type: mqtt
-    kind: server
-${bindingTelemetryContent}
-    exit: mqtt_kafka_mapping
-  mqtt_kafka_mapping:
-    type: mqtt-kafka
-    kind: proxy
-${bindingTelemetryContent}
-    options:
-      topics:
-        sessions: ${kafkaTopicMqttSessions}
-        messages: ${kafkaTopicMqttMessages}
-        retained: ${kafkaTopicMqttRetained}
-    exit: kafka_cache_client
-  kafka_cache_client:
-    type: kafka
-    kind: cache_client
-${bindingTelemetryContent}
-    exit: kafka_cache_server
-  kafka_cache_server:
-    type: kafka
-    kind: cache_server
-${bindingTelemetryContent}
-    options:
-      bootstrap:
-        - ${kafkaTopicMqttMessages}
-        - ${kafkaTopicMqttRetained}
-    exit: kafka_client
-  kafka_client:
-    type: kafka
-    kind: client
-    options:
-      servers: ${kafkaBootstrapServers}
-      sasl:
-        mechanism: scram-sha-512
-        username: '${kafkaSaslUsername}'
-        password: '${kafkaSaslPassword}'
-${bindingTelemetryContent}
-    exit: tls_client
-  tls_client:
-    type: tls
-    kind: client
-    vault: secure
-${bindingTelemetryContent}
-    exit: tcp_client
-  tcp_client:
-    type: tcp
-    kind: client
-${bindingTelemetryContent}
-`;
+    data.kafka = {
+      bootstrapServers: kafkaBootstrapServers,
+      sasl : {
+        username: kafkaSaslUsername,
+        password: kafkaSaslPassword
+      }
+    }
+    data.public = {
+      port: publicTcpPort.value,
+      tlsCertificateKey: publicTlsCertificateKey.stringValue
+    }
+    data.topics = {
+      sessions: kafkaTopicMqttSessions.stringValue,
+      messages: kafkaTopicMqttMessages.stringValue,
+      retained: kafkaTopicMqttRetained.stringValue
+    };
+
+    const yamlTemplate: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
+    const renderedYaml: string = Mustache.render(yamlTemplate, data);
 
     const cfnHupConfContent = `
 [main]
@@ -538,7 +466,7 @@ END_HELP
     const userData = `#!/bin/bash -xe
 yum update -y aws-cfn-bootstrap
 cat <<'END_HELP' > /etc/zilla/zilla.yaml
-${zillaYamlContent}
+${renderedYaml}
 END_HELP
 
 chown ec2-user:ec2-user /etc/zilla/zilla.yaml
