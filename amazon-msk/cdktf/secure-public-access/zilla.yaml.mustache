@@ -33,7 +33,7 @@ bindings:
     kind: server
     options:
       host: 0.0.0.0
-      port: {{publicPort}}
+      port: {{public.port}}
     telemetry:
       metrics:
         - stream.*
@@ -44,10 +44,10 @@ bindings:
     vault: secure
     options:
       keys:
-        - {{publicTlsCertificateKey}}
+        - {{public.tlsCertificateKey}}
       {{#mTLS}}
       trust:
-        - {{publicCertificateAuthority}}
+        - {{public.certificateAuthority}}
       {{/mTLS}}
     telemetry:
       metrics:
@@ -55,17 +55,17 @@ bindings:
     routes:
       - exit: kafka_proxy
         when:
-          - authority: '{{publicWildcardDNS}}'
+          - authority: '{{public.wildcardDNS}}'
   kafka_proxy:
     type: kafka-proxy
     kind: proxy
     options:
       external:
         host: '{{externalHost}}'
-        port: {{publicPort}}
+        port: {{public.port}}
       internal:
         host: '{{internalHost}}'
-        port: {{mskPort}}
+        port: {{msk.port}}
     telemetry:
       metrics:
         - stream.*
@@ -77,7 +77,7 @@ bindings:
     options:
       {{#mTLS}}
       signers:
-        - {{mskCertificateAuthority}}
+        - {{msk.certificateAuthority}}
       {{/mTLS}}
       trustcacerts: true
     telemetry:
@@ -89,11 +89,11 @@ bindings:
     kind: client
     options:
       host: '*'
-      port: {{mskPort}}
+      port: {{msk.port}}
     telemetry:
       metrics:
         - stream.*
     routes:
       - when:
-        - authority: '{{mskWildcardDNS}}'
+        - authority: '{{msk.wildcardDNS}}'
 

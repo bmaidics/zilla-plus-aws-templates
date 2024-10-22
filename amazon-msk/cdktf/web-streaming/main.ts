@@ -31,16 +31,12 @@ import fs =  require("fs");
 
 interface TemplateData {
   name: string;
-  glueEnabled: boolean;
-  glueRegistry?: string;
+  glue?: object;
   cloudwatch?: object;
-  publicPort?: number;
-  publicTlsCertificateKey?: string;
   path?: string;
   topic?: string;
-  kafkaBootstrapServers?: string;
-  kafkaSaslUsername?: string;
-  kafkaSaslPassword?: string;
+  public?: object;
+  kafka?: object;
 }
 
 export class ZillaPlusWebStreamingStack extends TerraformStack {
@@ -327,7 +323,6 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
 
     const data: TemplateData = {
       name: 'web',
-      glueEnabled: userVars.glueRegistryEnabled
     }
 
     if (!userVars.cloudwatchDisabled) {
@@ -366,7 +361,9 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
         description: "The Glue Registry to fetch the schemas from",
       });
 
-      data.glueRegistry = glueRegistry.stringValue;
+      data.glue = {
+        registry: glueRegistry.stringValue
+      }
     }
 
     const ami = new dataAwsAmi.DataAwsAmi(this, "LatestAmi", {
@@ -418,11 +415,17 @@ export class ZillaPlusWebStreamingStack extends TerraformStack {
 
     const kafkaBootstrapServers = `['${Fn.join(`','`, Fn.split(",", mskCluster.bootstrapBrokersSaslScram))}']`;
 
-    data.kafkaBootstrapServers = kafkaBootstrapServers;
-    data.kafkaSaslUsername = kafkaSaslUsername;
-    data.kafkaSaslPassword = kafkaSaslPassword;
-    data.publicPort = publicTcpPort.value;
-    data.publicTlsCertificateKey = publicTlsCertificateKey.stringValue;
+    data.kafka = {
+      bootstrapServers: kafkaBootstrapServers,
+      sasl : {
+        username: kafkaSaslUsername,
+        password: kafkaSaslPassword
+      }
+    }
+    data.public = {
+      port: publicTcpPort.value,
+      tlsCertificateKey: publicTlsCertificateKey.stringValue
+    }
     data.path = path;
     data.topic = topic.stringValue;
 

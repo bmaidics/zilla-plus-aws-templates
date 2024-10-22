@@ -33,7 +33,7 @@ bindings:
     kind: server
     options:
       host: 0.0.0.0
-      port: {{publicPort}}
+      port: {{public.port}}
     telemetry:
       metrics:
         - stream.*
@@ -44,7 +44,7 @@ bindings:
     vault: secure
     options:
       keys:
-        - {{publicTlsCertificateKey}}
+        - {{public.tlsCertificateKey}}
     telemetry:
       metrics:
         - stream.*
@@ -61,9 +61,9 @@ bindings:
     kind: proxy
     options:
       topics:
-        sessions: {{kafkaTopicMqttSessions}}
-        messages: {{kafkaTopicMqttMessages}}
-        retained: {{kafkaTopicMqttRetained}}
+        sessions: {{topics.sessions}}
+        messages: {{topics.messages}}
+        retained: {{topics.retained}}
     telemetry:
       metrics:
         - stream.*
@@ -80,8 +80,8 @@ bindings:
     kind: cache_server
     options:
       bootstrap:
-        - {{kafkaTopicMqttMessages}}
-        - {{kafkaTopicMqttRetained}}
+        - {{topics.messages}}
+        - {{topics.retained}}
     telemetry:
       metrics:
         - stream.*
@@ -90,11 +90,11 @@ bindings:
     type: kafka
     kind: client
     options:
-      servers: {{{kafkaBootstrapServers}}}
+      servers: {{{kafka.bootstrapServers}}}
       sasl:
         mechanism: scram-sha-512
-        username: '{{kafkaSaslUsername}}'
-        password: '{{kafkaSaslPassword}}'
+        username: '{{kafka.sasl.username}}'
+        password: '{{kafka.sasl.password}}'
     telemetry:
       metrics:
         - stream.*

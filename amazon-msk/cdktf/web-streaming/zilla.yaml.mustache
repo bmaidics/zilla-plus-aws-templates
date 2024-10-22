@@ -2,13 +2,13 @@ name: {{name}}
 vaults:
   secure:
     type: aws-secrets
-{{#glueEnabled}}
+{{#glue}}
 catalogs:
   glue_catalog:
     type: aws-glue
     options:
-      registry: {{glueRegistry}}
-{{/glueEnabled}}
+      registry: {{glue.registry}}
+{{/glue}}
 telemetry:
   metrics:
     - stream.active.received
@@ -40,7 +40,7 @@ bindings:
     kind: server
     options:
       host: 0.0.0.0
-      port: {{publicPort}}
+      port: {{public.port}}
     telemetry:
       metrics:
         - stream.*
@@ -51,7 +51,7 @@ bindings:
     vault: secure
     options:
       keys:
-        - {{publicTlsCertificateKey}}
+        - {{public.tlsCertificateKey}}
     telemetry:
       metrics:
         - stream.*
@@ -65,7 +65,8 @@ bindings:
     routes:
       - when:
           - headers:
-              :path: /streams{{{path}}}
+              :path: {{{path}}}
+              accept: text/event-stream
         exit: sse_server
       - when:
           - headers:
@@ -88,7 +89,7 @@ bindings:
         - stream.*
     routes:
       - when:
-          - path: /streams{{{path}}}
+          - path: {{{path}}}
         exit: kafka_cache_client
         with:
           topic: {{topic}}
@@ -144,7 +145,7 @@ bindings:
   kafka_cache_client:
     type: kafka
     kind: cache_client
-{{#glueEnabled}}
+{{#glue}}
     options:
       topics:
         - name: {{topic}}
@@ -155,7 +156,7 @@ bindings:
               glue_catalog:
                 - strategy: topic
                   version: latest
-{{/glueEnabled}}
+{{/glue}}
     telemetry:
       metrics:
         - stream.*
@@ -166,7 +167,7 @@ bindings:
     options:
       bootstrap:
         - {{topic}}
-{{#glueEnabled}}
+{{#glue}}
       topics:
         - name: {{topic}}
           value:
@@ -176,7 +177,7 @@ bindings:
               glue_catalog:
                 - strategy: topic
                   version: latest
-{{/glueEnabled}}
+{{/glue}}
     telemetry:
       metrics:
         - stream.*
@@ -185,11 +186,11 @@ bindings:
     type: kafka
     kind: client
     options:
-      servers: {{{kafkaBootstrapServers}}}
+      servers: {{{kafka.bootstrapServers}}}
       sasl:
         mechanism: scram-sha-512
-        username: '{{kafkaSaslUsername}}'
-        password: '{{kafkaSaslPassword}}'
+        username: '{{kafka.sasl.username}}'
+        password: '{{kafka.sasl.password}}'
     telemetry:
       metrics:
         - stream.*

@@ -32,14 +32,10 @@ import fs =  require("fs");
 interface TemplateData {
   name: string;
   cloudwatch?: object;
-  publicPort?: number;
-  publicTlsCertificateKey?: string;
-  kafkaTopicMqttSessions?: string;
-  kafkaTopicMqttMessages?: string;
-  kafkaTopicMqttRetained?: string;
-  kafkaBootstrapServers?: string;
-  kafkaSaslUsername?: string;
-  kafkaSaslPassword?: string;
+  public?: object;
+  topics?: object;
+  kafka?: object;
+
 }
 
 export class ZillaPlusIotAndControlStack extends TerraformStack {
@@ -413,14 +409,22 @@ export class ZillaPlusIotAndControlStack extends TerraformStack {
 
     const kafkaBootstrapServers = `['${Fn.join(`','`, Fn.split(",", mskCluster.bootstrapBrokersSaslScram))}']`;
 
-    data.kafkaBootstrapServers = kafkaBootstrapServers;
-    data.kafkaSaslUsername = kafkaSaslUsername;
-    data.kafkaSaslPassword = kafkaSaslPassword;
-    data.publicPort = publicTcpPort.value;
-    data.publicTlsCertificateKey = publicTlsCertificateKey.stringValue;
-    data.kafkaTopicMqttSessions = kafkaTopicMqttSessions.stringValue;
-    data.kafkaTopicMqttMessages = kafkaTopicMqttMessages.stringValue;
-    data.kafkaTopicMqttRetained = kafkaTopicMqttRetained.stringValue;
+    data.kafka = {
+      bootstrapServers: kafkaBootstrapServers,
+      sasl : {
+        username: kafkaSaslUsername,
+        password: kafkaSaslPassword
+      }
+    }
+    data.public = {
+      port: publicTcpPort.value,
+      tlsCertificateKey: publicTlsCertificateKey.stringValue
+    }
+    data.topics = {
+      sessions: kafkaTopicMqttSessions.stringValue,
+      messages: kafkaTopicMqttMessages.stringValue,
+      retained: kafkaTopicMqttRetained.stringValue
+    };
 
     const yamlTemplate: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
     const renderedYaml: string = Mustache.render(yamlTemplate, data);
