@@ -2,15 +2,15 @@ name: {{name}}
 vaults:
   secure:
     type: aws-secrets
-{{#jwtEnabled}}
+{{#jwt}}
 guards:
   auth_jwt:
     type: jwt
     options:
-      issuer: {{issuer}}
-      audience: {{audience}}
-      keys: {{keysUrl}}
-{{/jwtEnabled}}
+      issuer: {{jwt.issuer}}
+      audience: {{jwt.audience}}
+      keys: {{jwt.keysUrl}}
+{{/jwt}}
 {{#glue}}
 catalogs:
   glue_catalog:
@@ -82,22 +82,22 @@ bindings:
           - headers:
               :path: {{{path}}}
               accept: text/event-stream
-{{#jwtEnabled}}
+{{#jwt}}
         guarded:
             auth_jwt:
               - sse:stream
-{{/jwtEnabled}}
+{{/jwt}}
         exit: sse_server
       - when:
           - headers:
               :path: {{{path}}}/*
           - headers:
               :path: {{{path}}}
-{{#jwtEnabled}}
+{{#jwt}}
         guarded:
             auth_jwt:
               - http:stream
-{{/jwtEnabled}}
+{{/jwt}}
         exit: http_kafka_mapping
   sse_server:
     type: sse
