@@ -37,16 +37,11 @@ interface TemplateData {
   name: string;
   useAcm: boolean;
   cloudwatch?: object;
-  publicPort?: number;
-  publicTlsCertificateKey?: string;
+  public?: object;
   mTLS?: boolean;
-  publicCertificateAuthority?: string;
-  publicWildcardDNS?: string;
   externalHost?: string;
   internalHost?: string;
-  mskPort?: number;
-  mskCertificateAuthority?: string;
-  mskWildcardDNS?: string;
+  msk?: object;
 }
 
 export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
@@ -171,7 +166,8 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
     const data: TemplateData = {
       name: 'public',
       useAcm: publicTlsCertificateViaAcm,
-      mTLS: mTLSEnabled
+      mTLS: mTLSEnabled,
+      public: {}
     };
 
     if (mTLSEnabled) {
@@ -201,7 +197,9 @@ export class ZillaPlusSecurePublicAccessStack extends TerraformStack {
         });
         publicCertificateAuthority = publicCertificateAuthorityVar.stringValue;
       }
-      data.publicCertificateAuthority = publicCertificateAuthority;
+      data.public  = {
+        certificateAuthority: publicCertificateAuthority
+      }
     }
 
     const publicTlsCertificateKey = new TerraformVariable(this, "public_tls_certificate_key", {
@@ -449,7 +447,7 @@ systemctl start nitro-enclaves-acm.service
         },
         metrics: {
           namespace: cloudWatchMetricsNamespace.stringValue
-        } 
+        }
       };
     }
 
@@ -513,13 +511,18 @@ systemctl start nitro-enclaves-acm.service
 
     const internalHost = ["b-#.", Fn.element(Fn.split("*.", mskWildcardDNS), 1)].join("");
 
-    data.publicPort = publicPort.value;
-    data.publicTlsCertificateKey = publicTlsCertificateKey.stringValue;
-    data.publicWildcardDNS = publicWildcardDNS.stringValue;
+    data.public = {
+      ...data.public,
+      port: publicPort.value,
+      tlsCertificateKey: publicTlsCertificateKey.stringValue,
+      wildcardDNS: publicWildcardDNS.stringValue
+    }
     data.externalHost = externalHost;
     data.internalHost = internalHost;
-    data.mskPort = mskPort;
-    data.mskWildcardDNS = mskWildcardDNS;
+    data.msk = {
+      port: mskPort,
+      wildcardDNS: mskWildcardDNS
+    }
     const yamlTemplate: string = fs.readFileSync('zilla.yaml.mustache', 'utf8');
     const renderedYaml: string = Mustache.render(yamlTemplate, data);
 
